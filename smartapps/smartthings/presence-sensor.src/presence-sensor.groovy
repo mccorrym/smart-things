@@ -28,21 +28,43 @@ definition(
 
 preferences {
 	section("Choose the presence sensor(s) you'd like to monitor.") {
-		input "sensor", "capability.presenceSensor", required: true, multiple: true, title: "Which sensor(s) to monitor?"
+		input "sensors", "capability.presenceSensor", required: true, multiple: true, title: "Which sensor(s) to monitor?"
 	}
 }
 
 def installed() {
 	log.debug "Installed with settings: ${settings}"
-    subscribe(sensor, "presence", presenceChangeHandler)
-    log.debug sensor.getSupportedAttributes()
+    subscribe(sensors, "presence", presenceChangeHandler)
+    def presence = [:]
+    sensors.each { object ->
+        def label = object.getLabel()
+        def value = object.currentValue("presence")
+        log.debug "Setting ${label} to presence setting ${value}"
+        presence << [label:value]
+    }
+    state.presence = presence
 }
 
 def updated() {
 	unsubscribe()
-	subscribe(sensor, "presence", presenceChangeHandler)
+	subscribe(sensors, "presence", presenceChangeHandler)
+    def presence = [:]
+    sensors.each { object ->
+        def label = object.getLabel()
+        def value = object.currentValue("presence")
+        log.debug "Setting ${label} to presence setting ${value}"
+        presence << [label:value]
+    }
+    state.presence = presence
 }
 
 def presenceChangeHandler(evt) {
-	log.debug evt.value
+    log.debug "evt.value ${evt.value}"
+    log.debug "evt.device ${evt.device.getLabel()}"
+    // Testing
+    if (evt.device.getLabel() == "sensor[0]") {
+    	log.debug "Sensor 0 was tripped. Current sensor 0 value: ${state.presence["sensor[0]"]}"
+    } else {
+    	log.debug "A different sensor was tripped"
+    }
 }
