@@ -13,17 +13,20 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+
+import groovy.json.JsonSlurper
+
 definition(
     name: "Presence Sensor",
     namespace: "smartthings",
     author: "Matt",
-    description: "Manages the notifications that are sent for the presence sensors on the network.",
+    description: "Monitors the presence sensors on the network and makes changes and/or sends notifications based on their status.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/text.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/text@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Meta/text@2x.png") {
-    appSetting "sensor_name"
-    appSetting "notification_list"
+    appSetting "notification_sensors"
+    appSetting "notification_recipients"
 }
 
 preferences {
@@ -61,10 +64,32 @@ def updated() {
 def presenceChangeHandler(evt) {
     log.debug "evt.value ${evt.value}"
     log.debug "evt.device ${evt.device.getLabel()}"
-    // Testing
-    if (evt.device.getLabel() == "sensor[0]") {
-    	log.debug "Sensor 0 was tripped. Current sensor 0 value: ${state.presence["sensor[0]"]}"
-    } else {
-    	log.debug "A different sensor was tripped"
+    // Only perform an action if the stored presence state does not match the event's presence state for this sensor
+    if (state.presence[evt.device.getLabel()] != evt.value) {
+        def parser = new JsonSlurper()
+        def tracking_list = parser.parseText(appSettings.notification_sensors)
+        if (tracking_list.contains(evt.device.getLabel())) {
+            // This device is being tracked. Send a notification and update the stored presence setting
+            def notification_list = parser.parseText(appSettings.notification_recipients)
+            switch(evt.value) {
+                case "present":
+                    log.debug "${evt.device.getLabel()} has arrived home."
+                    notification_list.each { phone_number ->
+                    	sendSms(phone_number, "${evt.device.getLabel()} has arrived home.")
+                    }
+                    break
+                case "not present":
+                    log.debug "${evt.device.getLabel()} has left home."
+                    notification_list.each { phone_number ->
+                    	sendSms(phone_number, "${evt.device.getLabel()} has left home.")
+                    }
+                    break
+            }
+            // Update the stored presence setting for this sensor
+            state.presence[evt.device.getLabel()] = evt.value
+        } else {
+            // Update the stored presence setting for this sensor
+            state.presence[evt.device.getLabel()] = evt.value
+        }
     }
 }
