@@ -96,7 +96,7 @@ def presenceChangeHandler(evt) {
 }
 
 def updatePresence(evt) {
-	state.presence[evt.device.getLabel()] = evt.value
+    state.presence[evt.device.getLabel()] = evt.value
     def presence = []
     state.presence.each { sensor_name, sensor_presence ->
     	if (sensor_presence != "not present") {
@@ -106,5 +106,5 @@ def updatePresence(evt) {
     if (presence.size == 0) {
     	// All sensors have left the network. Perform any desired actions here
     	sendNotificationEvent("All sensors have left the network!")
-	}
+    }
 }
