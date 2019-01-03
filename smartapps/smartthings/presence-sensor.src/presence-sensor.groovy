@@ -36,7 +36,7 @@ preferences {
 }
 
 def installed() {
-	log.debug "Installed with settings: ${settings}"
+    log.debug "Installed with settings: ${settings}"
     subscribe(sensors, "presence", presenceChangeHandler)
     def presence = [:]
     sensors.each { object ->
@@ -49,8 +49,8 @@ def installed() {
 }
 
 def updated() {
-	unsubscribe()
-	subscribe(sensors, "presence", presenceChangeHandler)
+    unsubscribe()
+    subscribe(sensors, "presence", presenceChangeHandler)
     def presence = [:]
     sensors.each { object ->
         def label = object.getLabel()

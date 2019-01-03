@@ -11,14 +11,14 @@ definition(
 preferences {
 	section("Choose the light sensor and switches you'd like to control.") {
 		input "sensor", "capability.illuminanceMeasurement", required: true, title: "Which sensor to monitor?"
-        input "switches", "capability.switch", required: true, multiple: true, title: "Which switch(es) to control?"
-        input "holiday_switches", "capability.switch", required: false, multiple: true, title: "Choose any holiday lights (optional)"
-        input "holiday_time", "time", required: false, title: "Choose a time to turn the holiday lights off"
+    	input "switches", "capability.switch", required: true, multiple: true, title: "Which switch(es) to control?"
+    	input "holiday_switches", "capability.switch", required: false, multiple: true, title: "Choose any holiday lights (optional)"
+    	input "holiday_time", "time", required: false, title: "Choose a time to turn the holiday lights off"
 	}
 }
 
 def installed() {
-	subscribe(sensor, "illuminance", illuminanceChangeHandler)
+    subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
     unschedule(holidayLightsHandler)
     if (holiday_switches != null) {
@@ -27,8 +27,8 @@ def installed() {
 }
 
 def updated() {
-	unsubscribe()
-	subscribe(sensor, "illuminance", illuminanceChangeHandler)
+    unsubscribe()
+    subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
     unschedule(holidayLightsHandler)
     if (holiday_switches != null) {
@@ -37,7 +37,7 @@ def updated() {
 }
 
 def switchChangeHandler (evt) {
-	state.switch_value = evt.value
+    state.switch_value = evt.value
 }
 
 def illuminanceChangeHandler (evt) {
@@ -75,7 +75,7 @@ def illuminanceChangeHandler (evt) {
                     }
                 }
                 if (switches_on) {
-                	return
+                    return
                 }
                 
                 def df = new java.text.SimpleDateFormat("H")
@@ -124,7 +124,7 @@ def illuminanceChangeHandler (evt) {
                     }
                 }
                 if (switches_off) {
-                	return
+                    return
                 }
                 
                 def df = new java.text.SimpleDateFormat("H")
@@ -155,7 +155,7 @@ def holidayLightsHandler (evt) {
     log.trace ("Time ${holiday_time} has been reached. Turning the holiday switches OFF.")
 	if (holiday_switches != null) {
         holiday_switches.each { object ->
-        	log.debug(object.currentSwitch)
+            log.debug(object.currentSwitch)
             object.off()
         }
     }
