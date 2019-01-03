@@ -15,7 +15,7 @@
  */
 
 import groovy.json.JsonSlurper
-
+	
 definition(
     name: "Presence Sensor",
     namespace: "smartthings",
@@ -43,7 +43,7 @@ def installed() {
         def label = object.getLabel()
         def value = object.currentValue("presence")
         log.debug "Setting ${label} to presence setting ${value}"
-        presence << [label:value]
+        presence[label] = value
     }
     state.presence = presence
 }
@@ -56,7 +56,7 @@ def updated() {
         def label = object.getLabel()
         def value = object.currentValue("presence")
         log.debug "Setting ${label} to presence setting ${value}"
-        presence << [label:value]
+        presence[label] = value
     }
     state.presence = presence
 }
@@ -64,6 +64,7 @@ def updated() {
 def presenceChangeHandler(evt) {
     log.debug "evt.value ${evt.value}"
     log.debug "evt.device ${evt.device.getLabel()}"
+    
     // Only perform an action if the stored presence state does not match the event's presence state for this sensor
     if (state.presence[evt.device.getLabel()] != evt.value) {
         def parser = new JsonSlurper()
@@ -86,10 +87,24 @@ def presenceChangeHandler(evt) {
                     break
             }
             // Update the stored presence setting for this sensor
-            state.presence[evt.device.getLabel()] = evt.value
+            updatePresence(evt)
         } else {
             // Update the stored presence setting for this sensor
-            state.presence[evt.device.getLabel()] = evt.value
+            updatePresence(evt)
         }
     }
+}
+
+def updatePresence(evt) {
+	state.presence[evt.device.getLabel()] = evt.value
+    def presence = []
+    state.presence.each { sensor_name, sensor_presence ->
+    	if (sensor_presence != "not present") {
+        	presence.push(sensor_name)
+        }
+    }
+    if (presence.size == 0) {
+    	// All sensors have left the network. Perform any desired actions here
+    	sendNotificationEvent("All sensors have left the network!")
+	}
 }
