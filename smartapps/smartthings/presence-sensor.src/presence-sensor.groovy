@@ -22,9 +22,8 @@ definition(
     author: "Matt",
     description: "Monitors the presence sensors on the network and makes changes and/or sends notifications based on their status.",
     category: "Convenience",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/text.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/text@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Meta/text@2x.png") {
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Family/App-PhoneMinder.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Family/App-PhoneMinder@2x.png") {
     appSetting "notification_sensors"
     appSetting "notification_recipients"
 }
@@ -33,6 +32,9 @@ preferences {
 	section("Choose the presence sensor(s) you'd like to monitor.") {
 		input "sensors", "capability.presenceSensor", required: true, multiple: true, title: "Which sensor(s) to monitor?"
 	}
+    section("Choose the thermostat to change when appropriate.") {
+        input "thermostat", "device.myEcobeeDevice", required: true, multiple: false, title: "Which thermostat?"
+    }
 }
 
 def installed() {
@@ -104,7 +106,16 @@ def updatePresence(evt) {
         }
     }
     if (presence.size == 0) {
-    	// All sensors have left the network. Perform any desired actions here
-    	sendNotificationEvent("All sensors have left the network!")
+    	// All sensors have left the network. Perform any desired actions here.
+    	sendNotificationEvent("All sensors have left the network.")
+        // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
+        // Only do this if the current system location setting is not set to "Away"
+        if (location.currentMode.toString() != "Away") {
+            sendNotificationEvent("Setting the thermostat to Away mode.")
+            thermostat.setThisTstatClimate("Away")
+            notification_list.each { phone_number ->
+                sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
+            }
+        }
     }
 }
