@@ -51,7 +51,7 @@ def motionChangeHandler(evt) {
         def tracking_list = parser.parseText(appSettings.notification_motions)
         // We only watch certain sensors in order to try and save energy in certain rooms.
         if (tracking_list.contains(evt.device.getLabel())) {
-        	def label = label.toString().replace("(Ecobee) ", "")
+        	def label = evt.device.getLabel().toString().replace("(Ecobee) ", "")
             // Send a notification
             sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
         }
