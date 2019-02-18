@@ -72,16 +72,16 @@ def motionChangeHandler(evt) {
     	def climate_name = thermostat.currentValue("climateName").toString()
         if (climate_name == "Away") {
             // Motion was detected from at least one sensor, which means someone is home.
-            // Set the thermostat to "Home and holding" which will hold until the next scheduled activity.
             // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
             if (location.currentMode.toString() != "Away") {
-                thermostat.setThisTstatClimate("Home")
+            	// The thermostat is in "Away and holding" mode. Resume its normal programming.
+                thermostat.resumeProgram()
                 
                 // Send a notification alerting to this change
                 def parser = new JsonSlurper()
                 def notification_list = parser.parseText(appSettings.notification_recipients)
                 notification_list.each { phone_number ->
-                    sendSms(phone_number, "Motion has been detected at home. Setting the thermostat to Home mode.")
+                    sendSms(phone_number, "Motion has been detected at home. Thermostat is resuming normal programming.")
                 }
             }
         }

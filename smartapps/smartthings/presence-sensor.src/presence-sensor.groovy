@@ -121,5 +121,16 @@ def updatePresence(evt) {
                 sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
             }
         }
+    } else {
+    	// At least one sensor is in the network. Perform any desired actions here.
+    	// Check to see whether the Ecobee is in "Away and holding" mode.
+    	def climate_name = thermostat.currentValue("climateName").toString()
+        if (climate_name == "Away") {
+            // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
+            if (location.currentMode.toString() != "Away") {
+            	// The thermostat is in "Away and holding" mode. Resume its normal programming.
+                thermostat.resumeProgram()
+            }
+        }
     }
 }
