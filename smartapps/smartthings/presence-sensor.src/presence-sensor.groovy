@@ -109,10 +109,14 @@ def updatePresence(evt) {
     	// All sensors have left the network. Perform any desired actions here.
     	sendNotificationEvent("All sensors have left the network.")
         // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
-        // Only do this if the current system location setting is not set to "Away"
+        // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
         if (location.currentMode.toString() != "Away") {
             sendNotificationEvent("Setting the thermostat to Away mode.")
             thermostat.setThisTstatClimate("Away")
+            
+            // Send a notification alerting to this change
+            def parser = new JsonSlurper()
+            def notification_list = parser.parseText(appSettings.notification_recipients)
             notification_list.each { phone_number ->
                 sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
             }
