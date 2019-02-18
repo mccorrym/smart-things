@@ -56,8 +56,15 @@ def motionChangeHandler(evt) {
         // We only watch certain sensors in order to try and save energy in certain rooms.
         if (tracking_list.contains(evt.device.getLabel())) {
         	def label = evt.device.getLabel().toString().replace("(Ecobee) ", "")
-            // Send a notification
-            sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
+            // Send a notification, but only between the hours of 8AM and 11PM
+            def df = new java.text.SimpleDateFormat("H")
+            // Ensure the new date object is set to local time zone
+            df.setTimeZone(location.timeZone)
+            def hour = df.format(new Date())
+            
+            if (hour.toInteger() >= 8 && hour.toInteger() <= 23) {
+                sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
+            }
         }
     // If the sensor has detected motion, take certain actions here.
     } else if (evt.value == "active") {
