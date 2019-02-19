@@ -103,6 +103,7 @@ def motionChangeHandler(evt) {
                     sendNotificationEvent("All Ecobee motion sensors are idle. Thermostat going into Away and holding mode.")
                     
                     // Send a notification alerting to this change
+                    parser = new JsonSlurper()
                     def notification_list = parser.parseText(appSettings.notification_recipients)
                     notification_list.each { phone_number ->
                         sendSms(phone_number, "All motion sensors are idle. Thermostat is going into Away mode.")
@@ -125,6 +126,7 @@ def motionChangeHandler(evt) {
                 sendNotificationEvent("Motion has been detected by one or more Ecobee motion sensors. Thermostat going into Home and holding mode.")
                 
                 // Send a notification alerting to this change
+                parser = new JsonSlurper()
                 def notification_list = parser.parseText(appSettings.notification_recipients)
                 notification_list.each { phone_number ->
                     sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home and holding mode.")
