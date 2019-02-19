@@ -109,6 +109,7 @@ def updatePresence(evt) {
     	// All sensors have left the network. Perform any desired actions here.
     	sendNotificationEvent("All sensors have left the network.")
         // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
+        // NOTE: Make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
         // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
         if (location.currentMode.toString() != "Away") {
             sendNotificationEvent("Setting the thermostat to Away mode.")

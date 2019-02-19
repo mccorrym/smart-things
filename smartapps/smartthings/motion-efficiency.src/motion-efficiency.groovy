@@ -98,6 +98,7 @@ def motionChangeHandler(evt) {
                 // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
                 if (location.currentMode.toString() != "Away") {
                 	// Set the thermostat to "Away and holding", which will hold until the next scheduled activity or if motion is detected at a sensor.
+                    // NOTE: Make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
                 	thermostat.setThisTstatClimate("Away")
                     
                     sendNotificationEvent("All Ecobee motion sensors are idle. Thermostat going into Away and holding mode.")
@@ -121,6 +122,7 @@ def motionChangeHandler(evt) {
             // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
             if (location.currentMode.toString() != "Away") {
             	// Set the thermostat to "Home and holding", which will hold until the next scheduled activity or if all sensors are inactive.
+                // NOTE: Make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
                 thermostat.setThisTstatClimate("Home")
                 
                 sendNotificationEvent("Motion has been detected by one or more Ecobee motion sensors. Thermostat going into Home and holding mode.")
