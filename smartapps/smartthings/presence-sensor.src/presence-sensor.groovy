@@ -124,16 +124,13 @@ def updatePresence(evt) {
         }
     } else {
     	// At least one sensor is in the network. Perform any desired actions here.
-    	// Check to see whether the Ecobee is in "Away and holding" mode.
-    	def climate_name = thermostat.currentValue("climateName").toString()
-        sendNotificationEvent("Thermostat climate mode: ${climate_name}")
-        if (climate_name == "Away") {
-            // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
-            if (location.currentMode.toString() != "Away") {
-            	// The thermostat is in "Away and holding" mode. Resume its normal programming.
-                sendNotificationEvent("Presence has been detected by one or more sensors. Thermostat is resuming its normal program.")
-                thermostat.resumeProgram()
-            }
+    	// Check to see whether the Ecobee is in "Away and holding" or "Home and holding" mode.
+        def program_type = thermostat.currentValue("programType").toString()
+        sendNotificationEvent("Thermostat program type: ${program_type}")
+        if (program_type == "hold") {
+            // The thermostat is in "Away and holding" or "Home and holding" mode. Resume its normal programming.
+            sendNotificationEvent("A sensor has entered the network. Thermostat is resuming its normal program.")
+            thermostat.resumeProgram()
         }
     }
 }
