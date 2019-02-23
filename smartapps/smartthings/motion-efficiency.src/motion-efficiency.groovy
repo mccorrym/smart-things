@@ -15,6 +15,7 @@
  */
 
 import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
 
 definition(
     name: "Motion Efficiency",
@@ -40,38 +41,22 @@ preferences {
 def installed() {
     log.debug "Installed with settings: ${settings}"
     subscribe(motions, "motion", motionChangeHandler)
-    def current_motion = [:]
-    motions.each { object ->
-        def label = object.getLabel()
-        def value = object.currentValue("motion")
-        log.debug "Setting ${label} to motion setting ${value}"
-        current_motion[label] = value
-    }
-    state.current_motion = current_motion
+    setCurrentMotions()
 }
 
 def updated() {
     unsubscribe()
     subscribe(motions, "motion", motionChangeHandler)
-    def current_motion = [:]
-    motions.each { object ->
-        def label = object.getLabel()
-        def value = object.currentValue("motion")
-        log.debug "Setting ${label} to motion setting ${value}"
-        current_motion[label] = value
-    }
-    state.current_motion = current_motion
+    setCurrentMotions()
 }
 
 // Ecobee sensors reset to "inactive" after approximately 30 minutes of no motion detected.
 def motionChangeHandler(evt) {
-    state.current_motion[evt.device.getLabel()] = evt.value
-    def current_motion = []
-    state.current_motion.each { motion_name, motion_status ->
-    	if (motion_status == "active") {
-        	current_motion.push(motion_name)
-        }
-    }
+    sendNotificationEvent("Sensor ${evt.device.getLabel()} has changed to: ${evt.value}")
+    
+    // Rewrite the entire object each time an event occurs since it appears the Ecobee device handler misses motion change events from time to time.
+    setCurrentMotions()
+
     // If the sensor is no longer detecting motion, take certain actions here.
     if (evt.value == "inactive") {
         def parser = new JsonSlurper()
@@ -89,11 +74,14 @@ def motionChangeHandler(evt) {
                 sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
             }
         }
+        
+        // Retrieve the current status of all motion sensors.
+        def current_motions = getCurrentMotions()
+        
         // If all sensors on the network are no longer tracking motion, take certain actions here.
-        if (current_motion.size == 0) {
+        if (current_motions.size == 0) {
     		// Check to see whether the Ecobee is in "Home" or "Home and holding" mode.
     		def set_climate = thermostat.currentValue("setClimate").toString()
-            sendNotificationEvent("Thermostat set climate: ${set_climate}")
             if (set_climate == "Home") {
                 // Set the thermostat to "Away and holding", which will hold until motion is detected at a sensor or a presence sensor enters the network.
                 // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
@@ -116,16 +104,12 @@ def motionChangeHandler(evt) {
     } else if (evt.value == "active") {
     	// Check to see whether the Ecobee is in "Away and holding" mode.
     	def set_climate = thermostat.currentValue("setClimate").toString()
-        sendNotificationEvent("Thermostat set climate: ${set_climate}")
-        // Check to see whether any presence sensors are at home. (Perhaps these apps ran out of order?)
-        def presence = []
-        state.presence.each { sensor_name, sensor_presence ->
-            if (sensor_presence != "not present") {
-                presence.push(sensor_name)
-            }
-        }
+
+        // Retrieve the current status of all motion sensors. (Perhaps these apps ran out of order?)
+        def current_motions = getCurrentMotions()
+        
         if (set_climate == "Away") {
-            if (presence.size > 0) {
+            if (current_motions.size > 0) {
                 // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
                 sendNotificationEvent("Motion was detected along with a presence sensor. Thermostat is resuming its normal program.")
                 thermostat.resumeProgram()            
@@ -149,4 +133,25 @@ def motionChangeHandler(evt) {
             }
         }
     }
+}
+
+def setCurrentMotions() {
+    def current_motions = [:]
+    def generator = new JsonOutput()
+    motions.each { object ->
+        def label = object.getLabel()
+        def value = object.currentValue("motion")
+        current_motions[label] = value
+    }
+
+    def current_motions_json = generator.toJson(current_motions)
+    sendNotificationEvent("Current motion: ${current_motions_json}")
+    // Use atomicState so that the values can be saved to the database and used within the same runtime
+    atomicState.current_motions = current_motions_json
+}
+
+def getCurrentMotions() {
+	def parser = new JsonSlurper()
+    def current_motions = parser.parseText(atomicState.current_motions)
+    return current_motions
 }
