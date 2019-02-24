@@ -105,11 +105,11 @@ def motionChangeHandler(evt) {
     	// Check to see whether the Ecobee is in "Away and holding" mode.
     	def set_climate = thermostat.currentValue("setClimate").toString()
 
-        // Retrieve the current status of all motion sensors. (Perhaps these apps ran out of order?)
-        def current_motions = getCurrentMotions()
+        // Retrieve the current status of all presence sensors. (Perhaps these apps ran out of order?)
+        def current_presence = getCurrentPresence()
         
         if (set_climate == "Away") {
-            if (current_motions.size > 0) {
+            if (current_presence.size > 0) {
                 // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
                 sendNotificationEvent("Motion was detected along with a presence sensor. Thermostat is resuming its normal program.")
                 thermostat.resumeProgram()            
@@ -154,4 +154,10 @@ def getCurrentMotions() {
 	def parser = new JsonSlurper()
     def current_motions = parser.parseText(atomicState.current_motions)
     return current_motions
+}
+
+def getCurrentPresence() {
+	def parser = new JsonSlurper()
+    def current_presence = parser.parseText(atomicState.current_presence)
+    return current_presence
 }
