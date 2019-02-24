@@ -15,7 +15,8 @@
  */
 
 import groovy.json.JsonSlurper
-	
+import groovy.json.JsonOutput
+
 definition(
     name: "Presence Sensor",
     namespace: "smartthings",
@@ -40,35 +41,22 @@ preferences {
 def installed() {
     log.debug "Installed with settings: ${settings}"
     subscribe(sensors, "presence", presenceChangeHandler)
-    def presence = [:]
-    sensors.each { object ->
-        def label = object.getLabel()
-        def value = object.currentValue("presence")
-        log.debug "Setting ${label} to presence setting ${value}"
-        presence[label] = value
-    }
-    state.presence = presence
+    setCurrentPresence()
 }
 
 def updated() {
     unsubscribe()
     subscribe(sensors, "presence", presenceChangeHandler)
-    def presence = [:]
-    sensors.each { object ->
-        def label = object.getLabel()
-        def value = object.currentValue("presence")
-        log.debug "Setting ${label} to presence setting ${value}"
-        presence[label] = value
-    }
-    state.presence = presence
+    setCurrentPresence()
 }
 
 def presenceChangeHandler(evt) {
-    log.debug "evt.value ${evt.value}"
-    log.debug "evt.device ${evt.device.getLabel()}"
+     // Get the current presence for all sensors
+    def current_presence = getCurrentPresence()
+    sendNotificationEvent("Presence sensor ${evt.device.getLabel()} has changed to: ${evt.value}")
     
     // Only perform an action if the stored presence state does not match the event's presence state for this sensor
-    if (state.presence[evt.device.getLabel()] != evt.value) {
+    if (current_presence[evt.device.getLabel()] != evt.value) {
         def parser = new JsonSlurper()
         def tracking_list = parser.parseText(appSettings.notification_sensors)
         if (tracking_list.contains(evt.device.getLabel())) {
@@ -76,36 +64,33 @@ def presenceChangeHandler(evt) {
             def notification_list = parser.parseText(appSettings.notification_recipients)
             switch(evt.value) {
                 case "present":
-                    log.debug "${evt.device.getLabel()} has arrived home."
                     notification_list.each { phone_number ->
                     	sendSms(phone_number, "${evt.device.getLabel()} has arrived home.")
                     }
                     break
                 case "not present":
-                    log.debug "${evt.device.getLabel()} has left home."
                     notification_list.each { phone_number ->
                     	sendSms(phone_number, "${evt.device.getLabel()} has left home.")
                     }
                     break
             }
             // Update the stored presence setting for this sensor
-            updatePresence(evt)
+            triggerPresenceChangeAction(evt)
         } else {
             // Update the stored presence setting for this sensor
-            updatePresence(evt)
+            triggerPresenceChangeAction(evt)
         }
     }
 }
 
-def updatePresence(evt) {
-    state.presence[evt.device.getLabel()] = evt.value
-    def presence = []
-    state.presence.each { sensor_name, sensor_presence ->
-    	if (sensor_presence != "not present") {
-        	presence.push(sensor_name)
-        }
-    }
-    if (presence.size == 0) {
+def triggerPresenceChangeAction(evt) {
+    // Update the current presence for all sensors
+    setCurrentPresence()
+    
+    // Get the current presence for all sensors
+    def current_presence = getCurrentPresence()
+    
+    if (current_presence.size == 0) {
     	// All sensors have left the network. Perform any desired actions here.
     	sendNotificationEvent("All sensors have left the network.")
         // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
@@ -126,11 +111,31 @@ def updatePresence(evt) {
     	// At least one sensor is in the network. Perform any desired actions here.
     	// Check to see whether the Ecobee is in "Away and holding" or "Home and holding" mode.
         def program_type = thermostat.currentValue("programType").toString()
-        sendNotificationEvent("Thermostat program type: ${program_type}")
         if (program_type == "hold") {
             // The thermostat is in "Away and holding" or "Home and holding" mode. Resume its normal programming.
             sendNotificationEvent("A sensor has entered the network. Thermostat is resuming its normal program.")
             thermostat.resumeProgram()
         }
     }
+}
+
+def setCurrentPresence() {
+    def current_presence = [:]
+    def generator = new JsonOutput()
+    sensors.each { object ->
+        def label = object.getLabel()
+        def value = object.currentValue("presence")
+        current_presence[label] = value
+    }
+    
+    def current_presence_json = generator.toJson(current_presence)
+    sendNotificationEvent("Current presence: ${current_presence_json}")
+    // Use atomicState so that the values can be saved to the database and used within the same runtime
+    atomicState.current_presence = current_presence_json
+}
+
+def getCurrentPresence() {
+	def parser = new JsonSlurper()
+    def current_presence = parser.parseText(atomicState.current_presence)
+    return current_presence
 }
