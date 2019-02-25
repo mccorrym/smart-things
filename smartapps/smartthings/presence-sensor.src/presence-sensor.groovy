@@ -52,7 +52,7 @@ def updated() {
 
 def presenceChangeHandler(evt) {
      // Get the current presence for all sensors
-    def current_presence = getCurrentPresence()
+    def current_presence = getCurrentPresence(false)
     sendNotificationEvent("Presence sensor ${evt.device.getLabel()} has changed to: ${evt.value}")
     
     // Only perform an action if the stored presence state does not match the event's presence state for this sensor
@@ -87,8 +87,8 @@ def triggerPresenceChangeAction(evt) {
     // Update the current presence for all sensors
     setCurrentPresence()
     
-    // Get the current presence for all sensors
-    def current_presence = getCurrentPresence()
+    // Get all currently present sensors
+    def current_presence = getCurrentPresence(true)
     
     if (current_presence.size == 0) {
     	// All sensors have left the network. Perform any desired actions here.
@@ -134,8 +134,19 @@ def setCurrentPresence() {
     atomicState.current_presence = current_presence_json
 }
 
-def getCurrentPresence() {
+def getCurrentPresence(present_only=false) {
 	def parser = new JsonSlurper()
     def current_presence = parser.parseText(atomicState.current_presence)
+    // If the present_only flag passed in is TRUE, only return the sensors in the object that are currently present
+    if (present_only) {
+        def presence_only = [:]
+        current_presence.each { object ->
+            def label = object.getLabel()
+            def value = object.currentValue("presence")
+            presence_only[label] = value
+        }
+        return presence_only
+    }
+    // Otherwise, return the full object of all sensors and their current status
     return current_presence
 }
