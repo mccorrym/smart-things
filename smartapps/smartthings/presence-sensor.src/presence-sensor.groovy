@@ -143,7 +143,9 @@ def getCurrentPresence(present_only=false) {
         current_presence.each { object ->
             def label = object.getLabel()
             def value = object.currentValue("presence")
-            presence_only[label] = value
+            if (value == "present") {
+                presence_only[label] = value
+            }
         }
         return presence_only
     }
