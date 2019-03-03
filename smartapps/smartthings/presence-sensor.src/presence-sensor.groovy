@@ -90,7 +90,7 @@ def triggerPresenceChangeAction(evt) {
     // Get all currently present sensors
     def current_presence = getCurrentPresence(true)
     
-    if (current_presence.size == 0) {
+    if (current_presence.size() == 0) {
     	// All sensors have left the network. Perform any desired actions here.
     	sendNotificationEvent("All sensors have left the network.")
         // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
@@ -129,7 +129,7 @@ def setCurrentPresence() {
     }
     
     def current_presence_json = generator.toJson(current_presence)
-    sendNotificationEvent("Current presence: ${current_presence_json}")
+    sendNotificationEvent("Setting current presence: ${current_presence_json}")
     // Use atomicState so that the values can be saved to the database and used within the same runtime
     atomicState.current_presence = current_presence_json
 }
@@ -138,11 +138,9 @@ def getCurrentPresence(present_only=false) {
 	def parser = new JsonSlurper()
     def current_presence = parser.parseText(atomicState.current_presence)
     // If the present_only flag passed in is TRUE, only return the sensors in the object that are currently present
-    if (present_only) {
+    if (present_only == true) {
         def presence_only = [:]
-        current_presence.each { object ->
-            def label = object.getLabel()
-            def value = object.currentValue("presence")
+        current_presence.each { label, value ->
             if (value == "present") {
                 presence_only[label] = value
             }

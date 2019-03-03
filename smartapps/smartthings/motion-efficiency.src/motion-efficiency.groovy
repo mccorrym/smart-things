@@ -78,8 +78,10 @@ def motionChangeHandler(evt) {
         // Retrieve a list of motion sensors currently detecting motion.
         def current_motions = getCurrentMotions(true)
         
+        sendNotificationEvent("Got current motions: ${current_motions}")
+        
         // If all sensors on the network are no longer tracking motion, take certain actions here.
-        if (current_motions.size == 0) {
+        if (current_motions.size() == 0) {
     		// Check to see whether the Ecobee is in "Home" or "Home and holding" mode.
     		def set_climate = thermostat.currentValue("setClimate").toString()
             if (set_climate == "Home") {
@@ -108,8 +110,10 @@ def motionChangeHandler(evt) {
         // Retrieve a list of currently present sensors. (Perhaps these apps ran out of order?)
         def current_presence = getCurrentPresence(true)
         
+        sendNotificationEvent("Got current presence: ${current_presence}")
+        
         if (set_climate == "Away") {
-            if (current_presence.size > 0) {
+            if (current_presence.size() > 0) {
                 // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
                 sendNotificationEvent("Motion was detected along with a presence sensor. Thermostat is resuming its normal program.")
                 thermostat.resumeProgram()            
@@ -154,11 +158,9 @@ def getCurrentMotions(motion_only=false) {
 	def parser = new JsonSlurper()
     def current_motions = parser.parseText(atomicState.current_motions)
     // If the motion_only flag passed in is TRUE, only return the sensors in the object that are currently detecting motion
-    if (motion_only) {
+    if (motion_only == true) {
         def motions_only = [:]
-        current_motions.each { object ->
-            def label = object.getLabel()
-            def value = object.currentValue("motion")
+        current_motions.each { label, value ->
             if (value == "active") {
                 motions_only[label] = value
             }
@@ -173,11 +175,9 @@ def getCurrentPresence(present_only=false) {
 	def parser = new JsonSlurper()
     def current_presence = parser.parseText(atomicState.current_presence)
     // If the present_only flag passed in is TRUE, only return the sensors in the object that are currently present
-    if (present_only) {
+    if (present_only == true) {
         def presence_only = [:]
-        current_presence.each { object ->
-            def label = object.getLabel()
-            def value = object.currentValue("presence")
+        current_presence.each { label, value ->
             if (value == "present") {
                 presence_only[label] = value
             }
