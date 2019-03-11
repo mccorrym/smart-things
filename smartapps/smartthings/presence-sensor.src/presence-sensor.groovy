@@ -1,7 +1,7 @@
 /**
  *  Presence Sensor
  *
- *  Copyright 2018 Matt
+ *  Copyright 2019 Matt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -35,6 +35,14 @@ preferences {
 	}
     section("Choose the thermostat to change when appropriate.") {
         input "thermostat", "device.myEcobeeDevice", required: true, multiple: false, title: "Which thermostat?"
+    }
+}
+
+mappings {
+    path("/current_presence") {
+        action: [
+            GET: "getCurrentPresenceViaOAuth"
+        ]
     }
 }
 
@@ -149,4 +157,9 @@ def getCurrentPresence(present_only=false) {
     }
     // Otherwise, return the full object of all sensors and their current status
     return current_presence
+}
+
+def getCurrentPresenceViaOAuth() {
+	// Send the response using text/plain as opposed to the default (text/json) since it appears this version of Groovy does not handle httpGet() calls with JSON responses well
+    render contentType: "text/plain", data: atomicState.current_presence, status: 200
 }

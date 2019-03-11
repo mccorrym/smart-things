@@ -27,6 +27,9 @@ definition(
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Allstate/motion_detected@2x.png") {
     appSetting "notification_motions"
     appSetting "notification_recipients"
+    appSetting "oauth_endpoint_url"
+    appSetting "oauth_endpoint_path"
+    appSetting "oauth_access_token"
 }
 
 preferences {
@@ -172,18 +175,35 @@ def getCurrentMotions(motion_only=false) {
 }
 
 def getCurrentPresence(present_only=false) {
-	def parser = new JsonSlurper()
-    def current_presence = parser.parseText(atomicState.current_presence)
-    // If the present_only flag passed in is TRUE, only return the sensors in the object that are currently present
-    if (present_only == true) {
-        def presence_only = [:]
-        current_presence.each { label, value ->
-            if (value == "present") {
-                presence_only[label] = value
+    // For details on setting up oAuth, see: 
+    // https://docs.smartthings.com/en/latest/smartapp-web-services-developers-guide/authorization.html
+    def params = [
+        uri: appSettings.oauth_endpoint_url,
+        path: appSettings.oauth_endpoint_path,
+        headers: [
+        	"Authorization": "Bearer ${appSettings.oauth_access_token}"
+        ]
+    ]
+
+    try {
+        httpGet(params) { resp ->
+            def parser = new JsonSlurper()
+            // This needs to be parse() instead of parseText() because resp.data is a StringReader object, not a String
+            def current_presence = parser.parse(resp.data)
+            // If the present_only flag passed in is TRUE, only return the sensors in the object that are currently present
+            if (present_only == true) {
+                def presence_only = [:]
+                current_presence.each { label, value ->
+                    if (value == "present") {
+                        presence_only[label] = value
+                    }
+                }
+                return presence_only
             }
+            // Otherwise, return the full object of all sensors and their current status
+            return current_presence
         }
-        return presence_only
+    } catch (e) {
+        sendNotificationEvent("Unable to complete getCurrentPresence() oAuth call: ${e}")
     }
-    // Otherwise, return the full object of all sensors and their current status
-    return current_presence
 }
