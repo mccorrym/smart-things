@@ -160,6 +160,6 @@ def getCurrentPresence(present_only=false) {
 }
 
 def getCurrentPresenceViaOAuth() {
-	// Send the response using text/plain as opposed to the default (text/json) since it appears this version of Groovy does not handle httpGet() calls with JSON responses well
+    // Send the response using text/plain as opposed to the default (text/json) since it appears this version of Groovy does not handle httpGet() calls with JSON responses well
     render contentType: "text/plain", data: atomicState.current_presence, status: 200
 }
