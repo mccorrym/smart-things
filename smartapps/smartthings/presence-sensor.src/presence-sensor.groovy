@@ -109,8 +109,6 @@ def triggerPresenceChangeAction(evt) {
             sendNotificationEvent("[PRESENCE] ACTION: Setting the thermostat to Away mode.")
             try {
                 thermostat.setThisTstatClimate("Away")
-                def thermostat_params = getThermostatParams()
-                sendNotificationEvent("[PRESENCE] RESULT: ${thermostat_params}")
 
                 // Send a notification alerting to this change
                 def parser = new JsonSlurper()
@@ -132,8 +130,6 @@ def triggerPresenceChangeAction(evt) {
             sendNotificationEvent("[PRESENCE] ACTION: Thermostat is resuming its normal program.")
             try {
                 thermostat.resumeProgram()
-                def thermostat_params = getThermostatParams()
-                sendNotificationEvent("[PRESENCE] RESULT: ${thermostat_params}")
             } catch(e) {
                 sendNotificationEvent("[PRESENCE] ERROR: ${e}")
             }
@@ -175,11 +171,4 @@ def getCurrentPresence(present_only=false) {
 def getCurrentPresenceViaOAuth() {
     // Send the response using text/plain as opposed to the default (text/json) since it appears this version of Groovy does not handle httpGet() calls with JSON responses well
     render contentType: "text/plain", data: atomicState.current_presence, status: 200
-}
-
-def getThermostatParams() {
-	def thermostat_params = [:]
-    thermostat_params["program_type"] = thermostat.currentValue("programType").toString()
-    thermostat_params["set_climate"] = thermostat.currentValue("setClimate").toString()
-    return thermostat_params
 }

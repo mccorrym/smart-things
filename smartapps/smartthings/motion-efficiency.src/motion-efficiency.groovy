@@ -60,6 +60,10 @@ def motionChangeHandler(evt) {
     // Rewrite the entire object each time an event occurs since it appears the Ecobee device handler misses motion change events from time to time.
     setCurrentMotions()
 
+    // Retrieve a list of motion sensors currently detecting motion.
+    def current_motions = getCurrentMotions(true)
+    sendNotificationEvent("[MOTION] Current motion: ${current_motions}")
+        
     // If the sensor is no longer detecting motion, take certain actions here.
     if (evt.value == "inactive") {
         def parser = new JsonSlurper()
@@ -78,9 +82,6 @@ def motionChangeHandler(evt) {
             }
         }
         
-        // Retrieve a list of motion sensors currently detecting motion.
-        def current_motions = getCurrentMotions(true)
-        
         // If all sensors on the network are no longer tracking motion, take certain actions here.
         if (current_motions.size() == 0) {
     		// Check to see whether the Ecobee is in "Home" or "Home and holding" mode.
@@ -94,9 +95,7 @@ def motionChangeHandler(evt) {
                     
                     try {
                         thermostat.setThisTstatClimate("Away")
-                        def thermostat_params = getThermostatParams()
-                        sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
-
+                        
                         // Send a notification alerting to this change
                         parser = new JsonSlurper()
                         def notification_list = parser.parseText(appSettings.notification_recipients)
@@ -126,8 +125,6 @@ def motionChangeHandler(evt) {
                 sendNotificationEvent("[MOTION] ACTION: Thermostat is resuming its normal program.")
                 try {
                     thermostat.resumeProgram()
-                    def thermostat_params = getThermostatParams()
-                    sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
                 } catch(e) {
                     sendNotificationEvent("[MOTION] ERROR: ${e}")
                 }
@@ -140,8 +137,6 @@ def motionChangeHandler(evt) {
                     sendNotificationEvent("[MOTION] ACTION: Thermostat going into Home mode.")
                     try {
                         thermostat.setThisTstatClimate("Home")
-                        def thermostat_params = getThermostatParams()
-                        sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
                     
                         // Send a notification alerting to this change
                         parser = new JsonSlurper()
@@ -168,7 +163,6 @@ def setCurrentMotions() {
     }
 
     def current_motions_json = generator.toJson(current_motions)
-    sendNotificationEvent("[MOTION] Current motion: ${current_motions_json}")
     // Use atomicState so that the values can be saved to the database and used within the same runtime
     atomicState.current_motions = current_motions_json
 }
@@ -222,11 +216,4 @@ def getCurrentPresence(present_only=false) {
     } catch (e) {
         sendNotificationEvent("[MOTION] ERROR: Unable to complete getCurrentPresence() oAuth call: ${e}")
     }
-}
-
-def getThermostatParams() {
-	def thermostat_params = [:]
-    thermostat_params["program_type"] = thermostat.currentValue("programType").toString()
-    thermostat_params["set_climate"] = thermostat.currentValue("setClimate").toString()
-    return thermostat_params
 }
