@@ -61,7 +61,7 @@ def updated() {
 def presenceChangeHandler(evt) {
      // Get the current presence for all sensors
     def current_presence = getCurrentPresence(false)
-    sendNotificationEvent("Presence sensor ${evt.device.getLabel()} has changed to: ${evt.value}")
+    sendNotificationEvent("[PRESENCE] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
     
     // Only perform an action if the stored presence state does not match the event's presence state for this sensor
     if (current_presence[evt.device.getLabel()] != evt.value) {
@@ -97,32 +97,46 @@ def triggerPresenceChangeAction(evt) {
     
     // Get all currently present sensors
     def current_presence = getCurrentPresence(true)
+    sendNotificationEvent("[PRESENCE] Current presence: ${current_presence}")
     
     if (current_presence.size() == 0) {
     	// All sensors have left the network. Perform any desired actions here.
-    	sendNotificationEvent("All sensors have left the network.")
+        
         // Set the thermostat to "Away and holding" which will hold until the next scheduled activity.
         // NOTE: Make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
         // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
         if (location.currentMode.toString() != "Away") {
-            sendNotificationEvent("Setting the thermostat to Away mode.")
-            thermostat.setThisTstatClimate("Away")
-            
-            // Send a notification alerting to this change
-            def parser = new JsonSlurper()
-            def notification_list = parser.parseText(appSettings.notification_recipients)
-            notification_list.each { phone_number ->
-                sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
+            sendNotificationEvent("[PRESENCE] ACTION: Setting the thermostat to Away mode.")
+            try {
+                thermostat.setThisTstatClimate("Away")
+                def thermostat_params = getThermostatParams()
+                sendNotificationEvent("[PRESENCE] RESULT: ${thermostat_params}")
+
+                // Send a notification alerting to this change
+                def parser = new JsonSlurper()
+                def notification_list = parser.parseText(appSettings.notification_recipients)
+                notification_list.each { phone_number ->
+                    sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
+                }
+            } catch(e) {
+                sendNotificationEvent("[PRESENCE] ERROR: ${e}")
             }
         }
     } else {
     	// At least one sensor is in the network. Perform any desired actions here.
     	// Check to see whether the Ecobee is in "Away and holding" or "Home and holding" mode.
         def program_type = thermostat.currentValue("programType").toString()
+        sendNotificationEvent("[PRESENCE] Current program type: ${program_type}")
         if (program_type == "hold") {
             // The thermostat is in "Away and holding" or "Home and holding" mode. Resume its normal programming.
-            sendNotificationEvent("A sensor has entered the network. Thermostat is resuming its normal program.")
-            thermostat.resumeProgram()
+            sendNotificationEvent("[PRESENCE] ACTION: Thermostat is resuming its normal program.")
+            try {
+                thermostat.resumeProgram()
+                def thermostat_params = getThermostatParams()
+                sendNotificationEvent("[PRESENCE] RESULT: ${thermostat_params}")
+            } catch(e) {
+                sendNotificationEvent("[PRESENCE] ERROR: ${e}")
+            }
         }
     }
 }
@@ -137,7 +151,6 @@ def setCurrentPresence() {
     }
     
     def current_presence_json = generator.toJson(current_presence)
-    sendNotificationEvent("Setting current presence: ${current_presence_json}")
     // Use atomicState so that the values can be saved to the database and used within the same runtime
     atomicState.current_presence = current_presence_json
 }
@@ -162,4 +175,11 @@ def getCurrentPresence(present_only=false) {
 def getCurrentPresenceViaOAuth() {
     // Send the response using text/plain as opposed to the default (text/json) since it appears this version of Groovy does not handle httpGet() calls with JSON responses well
     render contentType: "text/plain", data: atomicState.current_presence, status: 200
+}
+
+def getThermostatParams() {
+	def thermostat_params = [:]
+    thermostat_params["program_type"] = thermostat.currentValue("programType").toString()
+    thermostat_params["set_climate"] = thermostat.currentValue("setClimate").toString()
+    return thermostat_params
 }

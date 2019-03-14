@@ -55,7 +55,7 @@ def updated() {
 
 // Ecobee sensors reset to "inactive" after approximately 30 minutes of no motion detected.
 def motionChangeHandler(evt) {
-    sendNotificationEvent("Sensor ${evt.device.getLabel()} has changed to: ${evt.value}")
+    sendNotificationEvent("[MOTION] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
     
     // Rewrite the entire object each time an event occurs since it appears the Ecobee device handler misses motion change events from time to time.
     setCurrentMotions()
@@ -81,26 +81,30 @@ def motionChangeHandler(evt) {
         // Retrieve a list of motion sensors currently detecting motion.
         def current_motions = getCurrentMotions(true)
         
-        sendNotificationEvent("Got current motions: ${current_motions}")
-        
         // If all sensors on the network are no longer tracking motion, take certain actions here.
         if (current_motions.size() == 0) {
     		// Check to see whether the Ecobee is in "Home" or "Home and holding" mode.
     		def set_climate = thermostat.currentValue("setClimate").toString()
-            if (set_climate == "Home") {
+            if (set_climate != "Sleep") {
                 // Set the thermostat to "Away and holding", which will hold until motion is detected at a sensor or a presence sensor enters the network.
                 // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
                 // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
                 if (location.currentMode.toString() != "Away") {
-                    thermostat.setThisTstatClimate("Away")
+                    sendNotificationEvent("[MOTION] ACTION: Thermostat going into Away mode.")
+                    
+                    try {
+                        thermostat.setThisTstatClimate("Away")
+                        def thermostat_params = getThermostatParams()
+                        sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
 
-                    sendNotificationEvent("All Ecobee motion sensors are idle. Thermostat going into Away mode.")
-
-                    // Send a notification alerting to this change
-                    parser = new JsonSlurper()
-                    def notification_list = parser.parseText(appSettings.notification_recipients)
-                    notification_list.each { phone_number ->
-                        sendSms(phone_number, "All motion sensors are idle. Thermostat is going into Away mode.")
+                        // Send a notification alerting to this change
+                        parser = new JsonSlurper()
+                        def notification_list = parser.parseText(appSettings.notification_recipients)
+                        notification_list.each { phone_number ->
+                            sendSms(phone_number, "All motion sensors are idle. Thermostat is going into Away mode.")
+                        }
+                    } catch(e) {
+                    	sendNotificationEvent("[MOTION] ERROR: ${e}")
                     }
                 }
             }
@@ -113,28 +117,40 @@ def motionChangeHandler(evt) {
         // Retrieve a list of currently present sensors. (Perhaps these apps ran out of order?)
         def current_presence = getCurrentPresence(true)
         
-        sendNotificationEvent("Got current presence: ${current_presence}")
+        sendNotificationEvent("[MOTION] Current presence: ${current_presence}")
+        sendNotificationEvent("[MOTION] Current climate: ${set_climate}")
         
         if (set_climate == "Away") {
             if (current_presence.size() > 0) {
                 // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
-                sendNotificationEvent("Motion was detected along with a presence sensor. Thermostat is resuming its normal program.")
-                thermostat.resumeProgram()            
+                sendNotificationEvent("[MOTION] ACTION: Thermostat is resuming its normal program.")
+                try {
+                    thermostat.resumeProgram()
+                    def thermostat_params = getThermostatParams()
+                    sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
+                } catch(e) {
+                    sendNotificationEvent("[MOTION] ERROR: ${e}")
+                }
             } else {
                 // If the Ecobee is set to "Away" or "Away and holding" and only motion is detected, someone is at the house but it's not us. Temporarily set the Ecobee to "Home and holding".
                 // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
                 if (location.currentMode.toString() != "Away") {
                     // Set the thermostat to "Home and holding", which will hold until all sensors are inactive or a presence sensor is detected.
                     // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
-                    thermostat.setThisTstatClimate("Home")
-
-                    sendNotificationEvent("Motion has been detected by one or more Ecobee motion sensors. Thermostat going into Home mode.")
-
-                    // Send a notification alerting to this change
-                    parser = new JsonSlurper()
-                    def notification_list = parser.parseText(appSettings.notification_recipients)
-                    notification_list.each { phone_number ->
-                        sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
+                    sendNotificationEvent("[MOTION] ACTION: Thermostat going into Home mode.")
+                    try {
+                        thermostat.setThisTstatClimate("Home")
+                        def thermostat_params = getThermostatParams()
+                        sendNotificationEvent("[MOTION] RESULT: ${thermostat_params}")
+                    
+                        // Send a notification alerting to this change
+                        parser = new JsonSlurper()
+                        def notification_list = parser.parseText(appSettings.notification_recipients)
+                        notification_list.each { phone_number ->
+                            sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
+                        }
+                    } catch(e) {
+                        sendNotificationEvent("[MOTION] ERROR: ${e}")
                     }
                 }
             }
@@ -152,7 +168,7 @@ def setCurrentMotions() {
     }
 
     def current_motions_json = generator.toJson(current_motions)
-    sendNotificationEvent("Current motion: ${current_motions_json}")
+    sendNotificationEvent("[MOTION] Current motion: ${current_motions_json}")
     // Use atomicState so that the values can be saved to the database and used within the same runtime
     atomicState.current_motions = current_motions_json
 }
@@ -204,6 +220,13 @@ def getCurrentPresence(present_only=false) {
             return current_presence
         }
     } catch (e) {
-        sendNotificationEvent("Unable to complete getCurrentPresence() oAuth call: ${e}")
+        sendNotificationEvent("[MOTION] ERROR: Unable to complete getCurrentPresence() oAuth call: ${e}")
     }
+}
+
+def getThermostatParams() {
+	def thermostat_params = [:]
+    thermostat_params["program_type"] = thermostat.currentValue("programType").toString()
+    thermostat_params["set_climate"] = thermostat.currentValue("setClimate").toString()
+    return thermostat_params
 }
