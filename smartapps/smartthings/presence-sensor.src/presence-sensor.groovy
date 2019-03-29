@@ -59,9 +59,10 @@ def updated() {
 }
 
 def presenceChangeHandler(evt) {
-     // Get the current presence for all sensors
+    //sendNotificationEvent("[PRESENCE] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
+    
+    // Get the current presence for all sensors
     def current_presence = getCurrentPresence(false)
-    sendNotificationEvent("[PRESENCE] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
     
     // Only perform an action if the stored presence state does not match the event's presence state for this sensor
     if (current_presence[evt.device.getLabel()] != evt.value) {

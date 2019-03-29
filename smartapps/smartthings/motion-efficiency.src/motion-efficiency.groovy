@@ -55,8 +55,6 @@ def updated() {
 
 // Ecobee sensors reset to "inactive" after approximately 30 minutes of no motion detected.
 def motionChangeHandler(evt) {
-    sendNotificationEvent("[MOTION] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
-    
     // Rewrite the entire object each time an event occurs since it appears the Ecobee device handler misses motion change events from time to time.
     setCurrentMotions()
 
@@ -64,9 +62,10 @@ def motionChangeHandler(evt) {
     def current_motions = getCurrentMotions(true)
     sendNotificationEvent("[MOTION] Current motion: ${current_motions}")
         
+    def parser = new JsonSlurper()
+    
     // If the sensor is no longer detecting motion, take certain actions here.
     if (evt.value == "inactive") {
-        def parser = new JsonSlurper()
         def tracking_list = parser.parseText(appSettings.notification_motions)
         // We only watch certain sensors in order to try and save energy in certain rooms.
         if (tracking_list.contains(evt.device.getLabel())) {
@@ -86,7 +85,14 @@ def motionChangeHandler(evt) {
         if (current_motions.size() == 0) {
     		// Check to see whether the Ecobee is in "Home" or "Home and holding" mode.
     		def set_climate = thermostat.currentValue("setClimate").toString()
-            if (set_climate != "Sleep") {
+            def program_type = thermostat.currentValue("programType").toString()
+            
+            sendNotificationEvent("[MOTION] Set climate: ${set_climate}, program type: ${program_type}")
+            
+            // Do not take action if:
+            // Set climate is "Sleep"
+            // Set climate is "Away and holding"
+            if (set_climate != "Sleep" && (program_type != "hold" || set_climate != "Away")) {
                 // Set the thermostat to "Away and holding", which will hold until motion is detected at a sensor or a presence sensor enters the network.
                 // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
                 // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
