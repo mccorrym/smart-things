@@ -101,12 +101,18 @@ def motionChangeHandler(evt) {
                     
                     try {
                         thermostat.setThisTstatClimate("Away")
-                        
-                        // Send a notification alerting to this change
-                        parser = new JsonSlurper()
-                        def notification_list = parser.parseText(appSettings.notification_recipients)
-                        notification_list.each { phone_number ->
-                            sendSms(phone_number, "All motion sensors are idle. Thermostat is going into Away mode.")
+						
+                       	// Send a notification alerting to this change
+                        // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
+                        def current_timestamp = new Date().getTime() / 1000
+                        if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
+                            atomicState.sms_timestamp = current_timestamp
+                            
+                            parser = new JsonSlurper()
+                            def notification_list = parser.parseText(appSettings.notification_recipients)
+                            notification_list.each { phone_number ->
+                                sendSms(phone_number, "All motion sensors are idle. Thermostat is going into Away mode.")
+                            }
                         }
                     } catch(e) {
                     	sendNotificationEvent("[MOTION] ERROR: ${e}")
@@ -144,11 +150,16 @@ def motionChangeHandler(evt) {
                     try {
                         thermostat.setThisTstatClimate("Home")
                     
-                        // Send a notification alerting to this change
-                        parser = new JsonSlurper()
-                        def notification_list = parser.parseText(appSettings.notification_recipients)
-                        notification_list.each { phone_number ->
-                            sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
+                        // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
+                        def current_timestamp = new Date().getTime() / 1000
+                        if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
+                            atomicState.sms_timestamp = current_timestamp
+
+                            parser = new JsonSlurper()
+                            def notification_list = parser.parseText(appSettings.notification_recipients)
+                            notification_list.each { phone_number ->
+                                sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
+                            }
                         }
                     } catch(e) {
                         sendNotificationEvent("[MOTION] ERROR: ${e}")

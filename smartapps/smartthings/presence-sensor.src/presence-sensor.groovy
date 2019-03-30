@@ -111,11 +111,16 @@ def triggerPresenceChangeAction(evt) {
             try {
                 thermostat.setThisTstatClimate("Away")
 
-                // Send a notification alerting to this change
-                def parser = new JsonSlurper()
-                def notification_list = parser.parseText(appSettings.notification_recipients)
-                notification_list.each { phone_number ->
-                    sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
+                // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
+                def current_timestamp = new Date().getTime() / 1000
+                if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
+                    atomicState.sms_timestamp = current_timestamp
+
+                    def parser = new JsonSlurper()
+                    def notification_list = parser.parseText(appSettings.notification_recipients)
+                    notification_list.each { phone_number ->
+                        sendSms(phone_number, "All sensors have left the network. Setting the thermostat to Away mode.")
+                    }
                 }
             } catch(e) {
                 sendNotificationEvent("[PRESENCE] ERROR: ${e}")
