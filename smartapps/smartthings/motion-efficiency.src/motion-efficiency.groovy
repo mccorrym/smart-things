@@ -148,8 +148,12 @@ def motionChangeHandler(evt) {
                     // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
                     sendNotificationEvent("[MOTION] ACTION: Thermostat going into Home mode.")
                     try {
-                        thermostat.setThisTstatClimate("Home")
-                    
+                        try {
+                            thermostat.setThisTstatClimate("Home")
+                        } catch(e) {
+                            sendNotificationEvent("[MOTION] ERROR: ${e}")
+                        }
+ 
                         // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
                         def current_timestamp = new Date().getTime() / 1000
                         if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
