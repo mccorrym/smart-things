@@ -10,17 +10,17 @@ definition(
 
 preferences {
 	section("Choose the light sensor and switches you'd like to control.") {
-		input "sensor", "capability.illuminanceMeasurement", required: true, title: "Which light sensor to monitor?"
+        input "sensor", "capability.illuminanceMeasurement", required: true, title: "Which light sensor to monitor?"
         input "exterior_switches", "capability.switch", required: true, multiple: true, title: "Which exterior switch(es) to control?"
         input "exterior_target", "enum", required: true, title: "Which lumen value to target for exterior switches?", options: [200, 400, 600, 800]
- 		input "interior_switches", "capability.switch", required: false, multiple: true, title: "Which interior switch(es) to control? (optional)"
+        input "interior_switches", "capability.switch", required: false, multiple: true, title: "Which interior switch(es) to control? (optional)"
         input "interior_target", "enum", required: true, title: "Which lumen value to target for interior switches?", options: [200, 400, 600, 800]
         input "interior_time", "time", required: false, title: "Choose a time to turn the interior lights off"
 	}
 }
 
-def installed() {  
-	initIlluminationState()
+def installed() {
+    initIlluminationState()
     subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
     unschedule(interiorLightsHandler)
@@ -64,7 +64,7 @@ def illuminanceChangeHandler (evt) {
 }
 
 def evalIlluminanceAction(lux_measurement, target) {
-	log.trace ("Exterior target is ${exterior_target}. Interior target is ${interior_target}")
+    log.trace ("Exterior target is ${exterior_target}. Interior target is ${interior_target}")
     
     def lux_target = null
     def switch_list = null
