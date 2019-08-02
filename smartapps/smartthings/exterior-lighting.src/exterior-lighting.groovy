@@ -19,7 +19,7 @@ preferences {
 	}
 }
 
-def installed() {
+def installed() {  
 	initIlluminationState()
     subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
@@ -79,101 +79,105 @@ def evalIlluminanceAction(lux_measurement, target) {
             switch_list = interior_switches
             break
     }
-    
-    if (state.on_date[target] != null && lux_measurement >= lux_target) {
-    	// False alarm. Keep the lights OFF and reset the 3 minute timer.
-        log.trace ("False alarm - lux value is now ${lux_measurement}. Keeping ${target} lights off.")
-        state.on_date[target] = null
-    } else if (state.off_date[target] != null && lux_measurement <= lux_target) {
-    	// False alarm. Keep the lights ON and reset the 3 minute timer.
-        log.trace ("False alarm - lux value is now ${lux_measurement}. Keeping ${target} lights on.")
-        state.off_date[target] = null
-    } else {
-    	log.trace ("Lux value is ${lux_measurement}. Target is ${lux_target}.")
-    }
-    
-    if (lux_measurement < lux_target) {
-        // Lights are off and lux measurement is < exterior_target. Should we turn the lights on?
-        if (state.on_date[target] != null) {
-            def current_date = new Date().getTime() / 1000
-            // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
-            if ((current_date - state.on_date[target]) >= 30) {
-                // Reset the exterior_on_date to NULL to prepare for the next event
-                state.on_date[target] = null
 
-                // Check the status of the switches in the array. If all switches are already ON, exit the routine.
-                def switches_on = true
-                switch_list.any { object ->
-                    if (object.currentSwitch == "off") {
-                    	switches_on = false
-                        return true
-                    }
-                }
-                if (switches_on) {
-                    return
-                }
-                
-                def df = new java.text.SimpleDateFormat("H")
-                // Ensure the new date object is set to local time zone
-                df.setTimeZone(location.timeZone)
-                def hour = df.format(new Date())
+    def valid_hour = timeOfDayIsBetween(timeToday("10:00", location.timeZone), interior_time, new Date(), location.timeZone)
 
-                log.trace("Turning ${target} lights ON!")
-                switch_list.each { object ->
-                    object.on()
-                }
-
-                if (hour.toInteger() > 15) {
-                    sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
-                } else {
-                    sendPush("${target.capitalize()} lights are turning ON due to darkness.")
-                }
-            }
+    if (target == "exterior" || (target == "interior" && valid_hour)) {
+        if (state.on_date[target] != null && lux_measurement >= lux_target) {
+            // False alarm. Keep the lights OFF and reset the 3 minute timer.
+            log.trace ("False alarm - lux value is now ${lux_measurement}. Keeping ${target} lights off.")
+            state.on_date[target] = null
+        } else if (state.off_date[target] != null && lux_measurement <= lux_target) {
+            // False alarm. Keep the lights ON and reset the 3 minute timer.
+            log.trace ("False alarm - lux value is now ${lux_measurement}. Keeping ${target} lights on.")
+            state.off_date[target] = null
         } else {
-            state.on_date[target] = new Date().getTime() / 1000
-            log.trace ("Target lux value has been met. Setting 3 minute timer (${state.on_date[target]})")
+            log.trace ("Lux value is ${lux_measurement}. Target is ${lux_target}.")
         }
-    }
-    if (lux_measurement > lux_target) {
-        // Lights are on and lux measurement is > lux_target. Should we turn the lights off?
-        if (state.off_date[target] != null) {
-            def current_date = new Date().getTime() / 1000
-            // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
-            if ((current_date - state.off_date[target]) >= 30) {
-                // Reset the off_date to NULL to prepare for the next event
-                state.off_date[target] = null
 
-                // Check the status of the switches in the array. If all switches are already OFF, exit the routine.
-                def switches_off = true
-                switch_list.any { object ->
-                    if (object.currentSwitch == "on") {
-                    	switches_off = false
-                        return true
+        if (lux_measurement < lux_target) {
+            // Lights are off and lux measurement is < exterior_target. Should we turn the lights on?
+            if (state.on_date[target] != null) {
+                def current_date = new Date().getTime() / 1000
+                // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
+                if ((current_date - state.on_date[target]) >= 30) {
+                    // Reset the exterior_on_date to NULL to prepare for the next event
+                    state.on_date[target] = null
+
+                    // Check the status of the switches in the array. If all switches are already ON, exit the routine.
+                    def switches_on = true
+                    switch_list.any { object ->
+                        if (object.currentSwitch == "off") {
+                            switches_on = false
+                            return true
+                        }
+                    }
+                    if (switches_on) {
+                        return
+                    }
+
+                    def df = new java.text.SimpleDateFormat("H")
+                    // Ensure the new date object is set to local time zone
+                    df.setTimeZone(location.timeZone)
+                    def hour = df.format(new Date())
+
+                    log.trace("Turning ${target} lights ON!")
+                    switch_list.each { object ->
+                        object.on()
+                    }
+
+                    if (hour.toInteger() > 15) {
+                        sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
+                    } else {
+                        sendPush("${target.capitalize()} lights are turning ON due to darkness.")
                     }
                 }
-                if (switches_off) {
-                    return
-                }
-                
-                def df = new java.text.SimpleDateFormat("H")
-                // Ensure the new date object is set to local time zone
-                df.setTimeZone(location.timeZone)
-                def hour = df.format(new Date())
-
-                log.trace("Turning ${target} lights OFF!")
-                switch_list.each { object ->
-                    object.off()
-                }
-
-                if (hour.toInteger() > 15) {
-                    sendPush("${target.capitalize()} lights are turning back OFF.")
-                } else {
-                    sendPush("Good morning! ${target.capitalize} lights are turning OFF.")
-                }
+            } else {
+                state.on_date[target] = new Date().getTime() / 1000
+                log.trace ("Target lux value has been met. Setting 3 minute timer (${state.on_date[target]})")
             }
-        } else {
-            state.off_date[target] = new Date().getTime() / 1000
-            log.trace ("Target lux value has been met. Setting 3 minute timer (${state.off_date[target]})")
+        }
+        if (lux_measurement > lux_target) {
+            // Lights are on and lux measurement is > lux_target. Should we turn the lights off?
+            if (state.off_date[target] != null) {
+                def current_date = new Date().getTime() / 1000
+                // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
+                if ((current_date - state.off_date[target]) >= 30) {
+                    // Reset the off_date to NULL to prepare for the next event
+                    state.off_date[target] = null
+
+                    // Check the status of the switches in the array. If all switches are already OFF, exit the routine.
+                    def switches_off = true
+                    switch_list.any { object ->
+                        if (object.currentSwitch == "on") {
+                            switches_off = false
+                            return true
+                        }
+                    }
+                    if (switches_off) {
+                        return
+                    }
+
+                    def df = new java.text.SimpleDateFormat("H")
+                    // Ensure the new date object is set to local time zone
+                    df.setTimeZone(location.timeZone)
+                    def hour = df.format(new Date())
+
+                    log.trace("Turning ${target} lights OFF!")
+                    switch_list.each { object ->
+                        object.off()
+                    }
+
+                    if (hour.toInteger() > 15) {
+                        sendPush("${target.capitalize()} lights are turning back OFF.")
+                    } else {
+                        sendPush("Good morning! ${target.capitalize} lights are turning OFF.")
+                    }
+                }
+            } else {
+                state.off_date[target] = new Date().getTime() / 1000
+                log.trace ("Target lux value has been met. Setting 3 minute timer (${state.off_date[target]})")
+            }
         }
     }
 }
