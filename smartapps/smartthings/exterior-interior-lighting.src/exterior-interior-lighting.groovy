@@ -2,7 +2,7 @@ definition(
     name: "Exterior/Interior Lighting",
     namespace: "smartthings",
     author: "Matt",
-    description: "Monitor lighting to determine when to turn on or off exterior lighting.",
+    description: "Monitor light sensor(s) to determine when to turn on or off selected interior and/or exterior lighting.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-LightUpMyWorld.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-LightUpMyWorld@2x.png"
