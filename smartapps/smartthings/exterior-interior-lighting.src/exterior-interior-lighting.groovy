@@ -16,7 +16,7 @@ preferences {
         input "interior_switches", "capability.switch", required: false, multiple: true, title: "Which interior switch(es) to control? (optional)"
         input "interior_target", "enum", required: true, title: "Which lumen value to target for interior switches?", options: [200, 400, 600, 800]
         input "interior_time_off", "time", required: false, title: "Choose a time to turn the interior lights off at night"
-        input "interior_time_on", "time", required: false, title: "Choose a time to turn the interior lights off in the morning"
+        input "interior_time_on", "time", required: false, title: "Choose a time to turn the interior lights on in the morning"
 	}
 }
 
@@ -84,6 +84,8 @@ def evalIlluminanceAction(lux_measurement, target) {
             switch_list = interior_switches
             break
     }
+    
+    def valid_hour = timeOfDayIsBetween(interior_time_on, interior_time_off, new Date(), location.timeZone)
 
     if (state.on_date[target] != null && lux_measurement >= lux_target) {
         // False alarm. Keep the lights OFF and reset the 3 minute timer.
@@ -116,6 +118,11 @@ def evalIlluminanceAction(lux_measurement, target) {
                 }
                 if (switches_on) {
                     return
+                }
+                
+                // If the target is interior switches and the current time falls between the interior_time_off and interior_time_on, do nothing
+                if (target == "interior" && !valid_hour) {
+                	return;
                 }
 
                 def df = new java.text.SimpleDateFormat("H")
