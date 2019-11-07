@@ -28,10 +28,18 @@ preferences {
     section("Which sensor monitors the clothes dryer?") {
 	    input "dryer", "capability.powerMeter", required: true, multiple: false, title: "Choose the clothes dryer sensor"
     }
+    section("Which lights should change color?") {
+    	input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color-changing lights"
+    }
 }
 
 def installed() {
     log.debug dryer.capabilities
+    log.debug ("Current switch status: ${lights.currentValue("switch")}")
+    log.debug ("Current level: ${lights.currentValue("level")}")
+    log.debug ("Current color saturation: ${lights.currentValue("saturation")}")
+    log.debug ("Current hue: ${lights.currentValue("hue")}")
+    log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
     subscribe(dryer, "power", powerChangeHandler)
 }
 
