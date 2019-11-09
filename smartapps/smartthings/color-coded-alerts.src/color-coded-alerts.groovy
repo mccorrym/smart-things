@@ -25,29 +25,67 @@ definition(
 )
 
 preferences {
-    section("Which sensor monitors the clothes dryer?") {
-	    input "dryer", "capability.powerMeter", required: true, multiple: false, title: "Choose the clothes dryer sensor"
+    section("Which sensors monitor the washer and dryer?") {
+	    input "laundry_devices", "capability.powerMeter", required: true, multiple: false, title: "Choose the washer and dryer sensors"
     }
     section("Which lights should change color?") {
-    	input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color-changing lights"
+    	input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color changing lights"
     }
 }
 
 def installed() {
-    log.debug dryer.capabilities
+    log.debug laundry_devices.capabilities
     log.debug ("Current switch status: ${lights.currentValue("switch")}")
     log.debug ("Current level: ${lights.currentValue("level")}")
     log.debug ("Current color saturation: ${lights.currentValue("saturation")}")
     log.debug ("Current hue: ${lights.currentValue("hue")}")
     log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
-    subscribe(dryer, "power", powerChangeHandler)
+ 	
+    atomicState.laundry_devices = [:]
+    atomicState.laundry_devices["dryer"] = [:]
+    atomicState.laundry_devices["dryer"]["running"] = false
+    atomicState.laundry_devices["dryer"]["light_sequence"] = "dryerLightSequence"
+    
+    subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def updated() {
     unsubscribe()
-    subscribe(dryer, "power", powerChangeHandler)
+    atomicState.laundry_devices = [:]
+    atomicState.laundry_devices["dryer"] = [:]
+    atomicState.laundry_devices["dryer"]["running"] = false
+    atomicState.laundry_devices["dryer"]["light_sequence"] = "dryerLightSequence"
+    
+    subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def powerChangeHandler (evt) {
    log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
+   if (evt.value.toFloat() > 0.5) {
+       atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
+   } else {
+   	   if (atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"]) {
+           sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
+           sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
+           runIn(1, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+           runIn(2, backToNormal, [overwrite: false])
+           runIn(3, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+           runIn(4, backToNormal, [overwrite: false])
+           runIn(5, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+           runIn(6, backToNormal, [overwrite: false])
+           atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
+       }
+   }
+}
+
+// The color code for the dryer finishing is GREEN
+def dryerLightSequence() {
+    def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
+    lights.setColor(newValue)
+}
+
+// Return the lights to the default hue/temperature
+def backToNormal() {
+    def newValue = [hue: 13, saturation: 55, level: 100, temperature: 2732]
+    lights.setColor(newValue)
 }
