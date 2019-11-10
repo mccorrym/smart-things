@@ -15,72 +15,72 @@
  */
  
 definition(
-    name: "Color Coded Alerts",
-    namespace: "smartthings",
-    author: "Matt",
-    description: "Monitor selected sensors and switches and notify of any changes or alerts using specific color changes in Philips Hue bulbs.",
-    category: "Convenience",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer@2x.png"
+	name: "Color Coded Alerts",
+	namespace: "smartthings",
+	author: "Matt",
+	description: "Monitor selected sensors and switches and notify of any changes or alerts using specific color changes in Philips Hue bulbs.",
+	category: "Convenience",
+	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer.png",
+	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer@2x.png"
 )
 
 preferences {
-    section("Which sensors monitor the washer and dryer?") {
-	    input "laundry_devices", "capability.powerMeter", required: true, multiple: false, title: "Choose the washer and dryer sensors"
-    }
-    section("Which lights should change color?") {
-    	input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color changing lights"
-    }
+	section("Which sensors monitor the washer and dryer?") {
+		input "laundry_devices", "capability.powerMeter", required: true, multiple: false, title: "Choose the washer and dryer sensors"
+	}
+	section("Which lights should change color?") {
+		input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color changing lights"
+	}
 }
 
 def installed() {
-    log.debug laundry_devices.capabilities
-    log.debug ("Current switch status: ${lights.currentValue("switch")}")
-    log.debug ("Current level: ${lights.currentValue("level")}")
-    log.debug ("Current color saturation: ${lights.currentValue("saturation")}")
-    log.debug ("Current hue: ${lights.currentValue("hue")}")
-    log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
+	log.debug laundry_devices.capabilities
+	log.debug ("Current switch status: ${lights.currentValue("switch")}")
+	log.debug ("Current level: ${lights.currentValue("level")}")
+	log.debug ("Current color saturation: ${lights.currentValue("saturation")}")
+	log.debug ("Current hue: ${lights.currentValue("hue")}")
+	log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
  	
-    state.laundry_devices = [:]
-    state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
+	state.laundry_devices = [:]
+	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
            
-    subscribe(laundry_devices, "power", powerChangeHandler)
+	subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def updated() {
-    unsubscribe()
-    state.laundry_devices = [:]
-    state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
+	unsubscribe()
+	state.laundry_devices = [:]
+	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
     
-    subscribe(laundry_devices, "power", powerChangeHandler)
+	subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def powerChangeHandler (evt) {
-   log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
-   if (evt.value.toFloat() > 0.5) {
-   	   sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
-       state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
-   } else {
-   	   if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
-           sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
-           sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
-           if (lights.currentValue("switch").toString() == "[on, on]") {
-               runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
-               runIn(8, backToNormal, [overwrite: false])
-           }
-           state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
-       }
-   }
+	log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
+	if (evt.value.toFloat() > 0.5) {
+		sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
+		state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
+	} else {
+		if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
+			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
+			sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
+			if (lights.currentValue("switch").toString() == "[on, on]") {
+				runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+				runIn(8, backToNormal, [overwrite: false])
+			}
+			state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
+		}
+	}
 }
 
 // The color code for the dryer finishing is GREEN
 def dryerLightSequence() {
-    def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
-    lights.setColor(newValue)
+	def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
+	lights.setColor(newValue)
 }
 
 // Return the lights to the default hue/temperature
 def backToNormal() {
-    def newValue = [hue: 13, saturation: 55, level: 100, temperature: 2732]
-    lights.setColor(newValue)
+	def newValue = [hue: 13, saturation: 55, level: 100, temperature: 2732]
+	lights.setColor(newValue)
 }
