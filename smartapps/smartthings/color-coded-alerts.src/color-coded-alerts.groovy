@@ -41,20 +41,16 @@ def installed() {
     log.debug ("Current hue: ${lights.currentValue("hue")}")
     log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
  	
-    atomicState.laundry_devices = [:]
-    atomicState.laundry_devices["dryer"] = [:]
-    atomicState.laundry_devices["dryer"]["running"] = false
-    atomicState.laundry_devices["dryer"]["light_sequence"] = "dryerLightSequence"
-    
+    state.laundry_devices = [:]
+    state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
+           
     subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def updated() {
     unsubscribe()
-    atomicState.laundry_devices = [:]
-    atomicState.laundry_devices["dryer"] = [:]
-    atomicState.laundry_devices["dryer"]["running"] = false
-    atomicState.laundry_devices["dryer"]["light_sequence"] = "dryerLightSequence"
+    state.laundry_devices = [:]
+    state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
     
     subscribe(laundry_devices, "power", powerChangeHandler)
 }
@@ -62,18 +58,17 @@ def updated() {
 def powerChangeHandler (evt) {
    log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
    if (evt.value.toFloat() > 0.5) {
-       atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
+   	   sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
+       state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
    } else {
-   	   if (atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"]) {
+   	   if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
            sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
            sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
-           runIn(1, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
-           runIn(2, backToNormal, [overwrite: false])
-           runIn(3, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
-           runIn(4, backToNormal, [overwrite: false])
-           runIn(5, atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
-           runIn(6, backToNormal, [overwrite: false])
-           atomicState.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
+           if (lights.currentValue("switch").toString() == "[on, on]") {
+               runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+               runIn(8, backToNormal, [overwrite: false])
+           }
+           state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
        }
    }
 }
