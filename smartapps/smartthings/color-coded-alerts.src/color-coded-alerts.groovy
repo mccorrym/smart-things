@@ -58,13 +58,22 @@ def updated() {
 def powerChangeHandler (evt) {
 	log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
 	if (evt.value.toFloat() > 0.5) {
-		sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
-		state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
+    	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == false) {
+			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
+		}
+        state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
 	} else {
 		if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
 			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
 			sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
-			if (lights.currentValue("switch").toString() == "[on, on]") {
+            def lights_on = false
+            lights.any { object ->
+            	if (object.currentValue("switch") == "on") {
+                	lights_on = true
+                    return true
+                }
+            }
+			if (lights_on) {
 				runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
 				runIn(8, backToNormal, [overwrite: false])
 			}
