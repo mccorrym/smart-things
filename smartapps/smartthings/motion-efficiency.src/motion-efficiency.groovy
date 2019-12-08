@@ -77,7 +77,8 @@ def motionChangeHandler(evt) {
             def hour = df.format(new Date())
             
             if (hour.toInteger() >= 8 && hour.toInteger() <= 23) {
-                sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
+            	// Disabling this for now until switches can be integrated and this can be automated
+                //sendPush("${label} is no longer detecting motion. Make sure the light is turned off.")
             }
         }
         
