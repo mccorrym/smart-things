@@ -36,6 +36,9 @@ preferences {
     section("Choose the thermostat to change when appropriate.") {
         input "thermostat", "device.myEcobeeDevice", required: true, multiple: false, title: "Which thermostat?"
     }
+    section("Choose the switches you'd like to turn ON when all sensor(s) have left and OFF when one or more sensor has arrived.") {
+    	input "switches", "capability.switch", required: false, multiple: true, title: "Which switches?"
+    }
 }
 
 mappings {
@@ -58,9 +61,7 @@ def updated() {
     setCurrentPresence()
 }
 
-def presenceChangeHandler(evt) {
-    //sendNotificationEvent("[PRESENCE] CHANGE: ${evt.device.getLabel()} has changed to: ${evt.value}")
-    
+def presenceChangeHandler(evt) { 
     // Get the current presence for all sensors
     def current_presence = getCurrentPresence(false)
     
@@ -125,6 +126,12 @@ def triggerPresenceChangeAction(evt) {
             } catch(e) {
                 sendNotificationEvent("[PRESENCE] ERROR: ${e}")
             }
+            
+            // Turn all of the switche(s) selected for this scene ON while all sensors are away.
+            switches.each { this_switch ->
+            	sendNotificationEvent("[PRESENCE] Turning ${this_switch.device.getLabel()} ON.")
+            	this_switch.on()
+            }
         }
     } else {
     	// At least one sensor is in the network. Perform any desired actions here.
@@ -139,6 +146,11 @@ def triggerPresenceChangeAction(evt) {
             } catch(e) {
                 sendNotificationEvent("[PRESENCE] ERROR: ${e}")
             }
+        }
+        // Turn all of the switche(s) selected for this scene OFF while at least one sensor is in the network.
+        switches.each { this_switch ->
+            sendNotificationEvent("[PRESENCE] Turning ${this_switch.device.getLabel()} OFF.")
+            this_switch.off()
         }
     }
 }
