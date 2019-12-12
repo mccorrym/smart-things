@@ -74,9 +74,10 @@ def thermostatOperatingHandler(evt) {
         "-20" : "15"
     ]
 	if (evt.value.toString() == "heating") {
-    	sendNotificationEvent("[HUMIDIFIER] The furnace has called for heat.")
     	def current_temperature = thermostat.currentValue("weatherTemperatureDisplay").toInteger()
         def current_humidity = thermostat.currentValue("remoteSensorAvgHumidity").toInteger()
+        
+        sendNotificationEvent("[HUMIDIFIER] The furnace has called for heat. Outdoor temperature: ${current_temperature}. Indoor humidity: ${current_humidity}%.")
         
         def target_humidity = null
         humidity_map.any { temperature, humidity ->
@@ -96,8 +97,10 @@ def thermostatOperatingHandler(evt) {
                 // Run it for the selected time period
                 runIn((humidifer_runtime.toInteger() * 60), humidifierSwitchHandler)
                 
-                sendNotificationEvent("[HUMIDIFIER] turning ON. Outdoor temperature: ${current_temperature}. Indoor humidity: ${current_humidity}.")
+                sendNotificationEvent("[HUMIDIFIER] turning ON.")
             }
+        } else {
+        	sendNotificationEvent("[HUMIDIFIER] staying off. The current humidity of ${current_humidity} exceeds the target of ${target_humidity} at outdoor temperature ${current_temperature}.")
         }
     } else if (evt.value.toString() == "idle") {
     	// If the humidifier is still running, turn it off
