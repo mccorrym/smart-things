@@ -74,7 +74,7 @@ def thermostatOperatingHandler(evt) {
         "-20" : "15"
     ]
 	if (evt.value.toString() == "heating") {
-    	sendNotificationEvent("[FURNACE] has called for heat.")
+    	sendNotificationEvent("[HUMIDIFIER] The furnace has called for heat.")
     	def current_temperature = thermostat.currentValue("weatherTemperatureDisplay").toInteger()
         def current_humidity = thermostat.currentValue("remoteSensorAvgHumidity").toInteger()
         
