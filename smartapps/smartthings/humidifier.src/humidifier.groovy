@@ -1,5 +1,5 @@
 /**
- *  Presence Sensor
+ *  Humidifier Controller
  *
  *  Copyright 2019 Matt
  *
@@ -14,9 +14,6 @@
  *
  */
 
-import groovy.time.TimeCategory 
-import groovy.time.TimeDuration
-
 definition(
     name: "Humidifier",
     namespace: "smartthings",
@@ -24,26 +21,22 @@ definition(
     description: "Monitors thermostat actions, indoor humidity and outdoor temperature and turns a switch on to the humidifier in the event humidity needs raising.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/temp_thermo-switch.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/temp_thermo-switch@2x.png") {
-    appSetting "notification_recipients"
-}
-
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/temp_thermo-switch@2x.png")
+    
 preferences {
     section("Choose the thermostat to read values from and the humidifier switch to control.") {
         input "thermostat", "device.myEcobeeDevice", required: true, multiple: false, title: "Select the thermostat."
         input "humidifier", "capability.switch", required: true, multiple: false, title: "Select the humidifier switch."
-        input "humidifer_runtime", "enum", required: true, title: "Select how long to run the humidifier (in minutes) during each call for heat.", options: [1, 2, 3, 4, 5]
+        input "humidifier_runtime", "enum", required: true, title: "Select how long to run the humidifier (in minutes) during each call for heat.", options: [1, 2, 3, 4, 5]
     }
 }
 
 def installed() {
     subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
     // A fail safe to prevent the humidifier from being left running
-    runEvery10Minutes("humidifierSwitchHandler")
-    // Reset the humidifier run time each day
-    def midnight = new Date()
-    midnight.set(hourOfDay: 0, minute: 0, second: 0)
-    schedule(midnight, "humidifierRunTimeReset")
+    runEvery10Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
+    // Reset the humidifier run time each day at midnight
+    schedule("0 0 0 * * ?", "humidifierRunTimeReset")
     humidifierRunTimeReset()
 }
 
@@ -53,11 +46,9 @@ def updated() {
     subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
     
     // A fail safe to prevent the humidifier from being left running
-    runEvery10Minutes("humidifierSwitchHandler")
-    // Reset the humidifier run time each day
-    def midnight = new Date()
-    midnight.set(hourOfDay: 0, minute: 0, second: 0)
-    schedule(midnight, "humidifierRunTimeReset")
+    runEvery10Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
+    // Reset the humidifier run time each day at midnight
+    schedule("0 0 0 * * ?", "humidifierRunTimeReset")
     humidifierRunTimeReset()
 }
 
@@ -81,26 +72,33 @@ def thermostatOperatingHandler(evt) {
         
         def target_humidity = null
         humidity_map.any { temperature, humidity ->
-        	if (current_temperature <= temperature.toInteger()) {
-            	target_humidity = humidity.toInteger()
+            if (current_temperature <= temperature.toInteger()) {
+                target_humidity = humidity.toInteger()
             } else {
             	return true
             }
         }
         
         if (current_humidity <= target_humidity) {
-        	if (humidifier.currentValue("switch") == "off") {
-            	// Log the humidifier run time
-                state.humidifier_on = new Date()
-            	// Turn the humidifer switch ON
-                humidifer.on()
-                // Run it for the selected time period
-                runIn((humidifer_runtime.toInteger() * 60), humidifierSwitchHandler)
-                
-                sendNotificationEvent("[HUMIDIFIER] turning ON.")
+        	try {
+                if (humidifier.currentValue("switch") == "off") {
+                    // Log the humidifier run time
+                    state.humidifier_on = new Date().getTime() / 1000
+                    // Turn the humidifer switch ON
+                    humidifier.on()
+                    // Run it for the selected time period
+                    // Use runOnce() instead of runIn() which does not seem very reliable
+                    def now = new Date()
+                    def runTime = new Date(now.getTime() + ((humidifier_runtime.toInteger() * 60) * 1000))
+                    runOnce(runTime, humidifierSwitchHandler, [data: [failsafe: false]])
+
+                    sendNotificationEvent("[HUMIDIFIER] turning ON for ${humidifier_runtime} minutes.")
+                }
+            } catch(e) {
+                sendNotificationEvent("[HUMIDIFIER] thermostatOperatingHandler ERROR: ${e}")
             }
         } else {
-        	sendNotificationEvent("[HUMIDIFIER] staying off. The current humidity of ${current_humidity} exceeds the target of ${target_humidity} at outdoor temperature ${current_temperature}.")
+            sendNotificationEvent("[HUMIDIFIER] staying off. The current humidity of ${current_humidity} exceeds the target of ${target_humidity} at outdoor temperature ${current_temperature}.")
         }
     } else if (evt.value.toString() == "idle") {
     	// If the humidifier is still running, turn it off
@@ -108,18 +106,41 @@ def thermostatOperatingHandler(evt) {
     }
 }
 
-def humidifierSwitchHandler() {
-	// Log the humidifier run time
-	def diff = groovy.time.TimeCategory.minus(new Date(), state.humidifier_on)
-    state.humidifier_runtime = state.humidifier_runtime + duration.minutes
-    
-    sendNotificationEvent("[HUMIDIFIER] turning OFF. Total runtime today: ${state.humidifier_runtime} minutes.")
-    
-	// Turn the humidifier switch OFF
-    humidifier.off()
+def humidifierSwitchHandler(data) {
+    try {
+    	if (state.humidifier_on != null) {
+            def now = new Date()
+            def lastRunTime = (now.getTime() / 1000) - state.humidifier_on
+            
+            if (humidifier.currentValue("switch") == "on") {
+                if (data.failsafe) {
+                	// If this is the failsafe that is called periodically, don't interrupt a valid runtime. 
+                    // Only shut the humidifier off if humidifier_runtime has been exceeded by a factor of 1.25 (to account for small variance in job execution)
+                	if (lastRunTime <= (humidifier_runtime.toInteger() * 60 * 1.25)) {
+                    	return false
+                    }
+                }
+                // Log the humidifier run time
+                def total_runtime = (state.humidifier_total_runtime == null ? 0 : state.humidifier_total_runtime.toInteger()) + ((new Date().getTime() / 1000) - state.humidifier_on)
+                state.humidifier_total_runtime = total_runtime
+                
+                def msg = "turning OFF"
+                if (data.failsafe) {
+                    msg = msg + " due to failsafe"
+                }
+                
+                sendNotificationEvent("[HUMIDIFIER] ${msg}. Total runtime today: ${(state.humidifier_total_runtime / 60)} minutes.")
+                
+                // Turn the humidifier switch OFF
+                humidifier.off()
+            }
+        }
+    } catch(e) {
+        sendNotificationEvent("[HUMIDIFIER] humidifierSwitchHandler ERROR: ${e}")
+    }
 }
 
 def humidifierRunTimeReset() {
-	// Reset the humidifier run time
-    state.humidifier_runtime = 0
+    // Reset the humidifier run time
+    state.humidifier_total_runtime = 0
 }
