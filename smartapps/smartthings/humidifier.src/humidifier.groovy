@@ -54,16 +54,16 @@ def updated() {
 
 def thermostatOperatingHandler(evt) {
 	// A map of outdoor temperature : recommended indoor relative humidity
-    def humidity_map = [:]
-    humidity_map = [
-        "40" : "45",
-        "30" : "40",
-        "20" : "35",
-        "10" : "30",
-        "0" : "25",
-        "-10" : "20",
-        "-20" : "15"
-    ]
+	def humidity_map = [:]
+	humidity_map = [
+		"40" : "45",
+		"30" : "40",
+		"20" : "35",
+		"10" : "30",
+		"0" : "25",
+		"-10" : "20",
+		"-20" : "15"
+	]
 	if (evt.value.toString() == "heating") {
     	def current_temperature = thermostat.currentValue("weatherTemperatureDisplay").toInteger()
         def current_humidity = thermostat.currentValue("remoteSensorAvgHumidity").toInteger()
@@ -79,26 +79,30 @@ def thermostatOperatingHandler(evt) {
             }
         }
         
-        if (current_humidity <= target_humidity) {
-        	try {
-                if (humidifier.currentValue("switch") == "off") {
-                    // Log the humidifier run time
-                    state.humidifier_on = new Date().getTime() / 1000
-                    // Turn the humidifer switch ON
-                    humidifier.on()
-                    // Run it for the selected time period
-                    // Use runOnce() instead of runIn() which does not seem very reliable
-                    def now = new Date()
-                    def runTime = new Date(now.getTime() + ((humidifier_runtime.toInteger() * 60) * 1000))
-                    runOnce(runTime, humidifierSwitchHandler, [data: [failsafe: false]])
-
-                    sendNotificationEvent("[HUMIDIFIER] turning ON for ${humidifier_runtime} minutes.")
-                }
-            } catch(e) {
-                sendNotificationEvent("[HUMIDIFIER] thermostatOperatingHandler ERROR: ${e}")
-            }
+        if (target_humidity == null) {
+            sendNotificationEvent("[HUMIDIFIER] staying off. The current outdoor temperature of ${current_temperature} is too high to run the humidifier.")
         } else {
-            sendNotificationEvent("[HUMIDIFIER] staying off. The current humidity of ${current_humidity} exceeds the target of ${target_humidity} at outdoor temperature ${current_temperature}.")
+            if (current_humidity <= target_humidity) {
+                try {
+                    if (humidifier.currentValue("switch") == "off") {
+                        // Log the humidifier run time
+                        state.humidifier_on = new Date().getTime() / 1000
+                        // Turn the humidifer switch ON
+                        humidifier.on()
+                        // Run it for the selected time period
+                        // Use runOnce() instead of runIn() which does not seem very reliable
+                        def now = new Date()
+                        def runTime = new Date(now.getTime() + ((humidifier_runtime.toInteger() * 60) * 1000))
+                        runOnce(runTime, humidifierSwitchHandler, [data: [failsafe: false]])
+
+                        sendNotificationEvent("[HUMIDIFIER] turning ON for ${humidifier_runtime} minutes.")
+                    }
+                } catch(e) {
+                    sendNotificationEvent("[HUMIDIFIER] thermostatOperatingHandler ERROR: ${e}")
+                }
+            } else {
+                sendNotificationEvent("[HUMIDIFIER] staying off. The current humidity of ${current_humidity} exceeds the target of ${target_humidity} at outdoor temperature ${current_temperature}.")
+            }
         }
     } else if (evt.value.toString() == "idle") {
     	// If the humidifier is still running, turn it off
