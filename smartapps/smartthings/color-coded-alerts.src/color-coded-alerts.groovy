@@ -57,7 +57,7 @@ def updated() {
 
 def powerChangeHandler (evt) {
 	log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
-	if (evt.value.toFloat() > 0.5) {
+	if (evt.value.toFloat() > 1) {
     	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == false) {
 			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
 		}
