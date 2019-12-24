@@ -34,7 +34,7 @@ preferences {
 def installed() {
     subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
     // A fail safe to prevent the humidifier from being left running
-    runEvery10Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
+    runEvery5Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
     // Reset the humidifier run time each day at midnight
     schedule("0 0 0 * * ?", "humidifierRunTimeReset")
     humidifierRunTimeReset()
@@ -46,7 +46,7 @@ def updated() {
     subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
     
     // A fail safe to prevent the humidifier from being left running
-    runEvery10Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
+    runEvery5Minutes("humidifierSwitchHandler", [data: [failsafe: true]])
     // Reset the humidifier run time each day at midnight
     schedule("0 0 0 * * ?", "humidifierRunTimeReset")
     humidifierRunTimeReset()
