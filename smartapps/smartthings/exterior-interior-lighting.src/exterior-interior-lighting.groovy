@@ -129,16 +129,20 @@ def evalIlluminanceAction(lux_measurement, target) {
                 // Ensure the new date object is set to local time zone
                 df.setTimeZone(location.timeZone)
                 def hour = df.format(new Date())
-
-                log.trace("Turning ${target} lights ON!")
-                switch_list.each { object ->
-                    object.on()
-                }
-
-                if (hour.toInteger() > 15) {
-                    sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
+                
+                if (location.mode == "Keep Lights Off") {
+                    sendNotificationEvent("[LIGHTING] Keeping lights OFF due to the Keep Lights Off mode being set.")
                 } else {
-                    sendPush("${target.capitalize()} lights are turning ON due to darkness.")
+                    log.trace("Turning ${target} lights ON!")
+                    switch_list.each { object ->
+                        object.on()
+                    }
+ 
+                    if (hour.toInteger() > 15) {
+                        sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
+                    } else {
+                        sendPush("${target.capitalize()} lights are turning ON due to darkness.")
+                    }
                 }
             }
         } else {
@@ -171,14 +175,18 @@ def evalIlluminanceAction(lux_measurement, target) {
                 // Ensure the new date object is set to local time zone
                 df.setTimeZone(location.timeZone)
                 def hour = df.format(new Date())
+                
+                if (location.mode == "Keep Lights On") {
+                    sendNotificationEvent("[LIGHTING] Keeping lights ON due to the Keep Lights On mode being set.")
+                } else {
+                    log.trace("Turning ${target} lights OFF!")
+                    switch_list.each { object ->
+                        object.off()
+                    }
 
-                log.trace("Turning ${target} lights OFF!")
-                switch_list.each { object ->
-                    object.off()
-                }
-
-                if (hour.toInteger() > 15) {
-                    sendPush("${target.capitalize()} lights are turning back OFF.")
+                    if (hour.toInteger() > 15) {
+                        sendPush("${target.capitalize()} lights are turning back OFF.")
+                    }
                 }
             }
         } else {
@@ -190,11 +198,15 @@ def evalIlluminanceAction(lux_measurement, target) {
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches off at the time specified (interior_time_off)
 def interiorLightsOffHandler (evt) {
-    log.trace ("Time ${interior_time_off} has been reached. Turning the interior switches OFF.")
-	if (interior_switches != null) {
-        interior_switches.each { object ->
-            log.debug(object.currentSwitch)
-            object.off()
+    if (location.mode == "Keep Lights On") {
+        sendNotificationEvent("[LIGHTING] Keeping lights ON due to the Keep Lights On mode being set.")
+    } else {
+        log.trace ("Time ${interior_time_off} has been reached. Turning the interior switches OFF.")
+        if (interior_switches != null) {
+            interior_switches.each { object ->
+                log.debug(object.currentSwitch)
+                object.off()
+            }
         }
     }
 }
@@ -205,11 +217,15 @@ def interiorLightsOnHandler (evt) {
     def lux_target = interior_target.toInteger()
     
     if (lux_measurement < lux_target) {
-        log.trace ("Time ${interior_time_on} has been reached. Turning the interior switches ON.")
-        if (interior_switches != null) {
-            interior_switches.each { object ->
-                log.debug(object.currentSwitch)
-                object.on()
+    	if (location.mode == "Keep Lights Off") {
+            sendNotificationEvent("[LIGHTING] Keeping lights OFF due to the Keep Lights Off mode being set.")
+        } else {
+            log.trace ("Time ${interior_time_on} has been reached. Turning the interior switches ON.")
+            if (interior_switches != null) {
+                interior_switches.each { object ->
+                    log.debug(object.currentSwitch)
+                    object.on()
+                }
             }
         }
     }
