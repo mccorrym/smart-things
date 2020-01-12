@@ -132,45 +132,50 @@ def motionChangeHandler(evt) {
         sendNotificationEvent("[MOTION] Current presence: ${current_presence}")
         sendNotificationEvent("[MOTION] Current climate: ${set_climate}")
         
-        if (set_climate == "Away") {
-            if (current_presence.size() > 0) {
-                // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
-                sendNotificationEvent("[MOTION] ACTION: Thermostat is resuming its normal program.")
-                try {
-                    thermostat.resumeProgram()
-                } catch(e) {
-                    sendNotificationEvent("[MOTION] ERROR: ${e}")
-                }
-            } else {
-                // If the Ecobee is set to "Away" or "Away and holding" and only motion is detected, someone is at the house but it's not us. Temporarily set the Ecobee to "Home and holding".
-                // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
-                if (location.currentMode.toString() != "Away") {
-                    // Set the thermostat to "Home and holding", which will hold until all sensors are inactive or a presence sensor is detected.
-                    // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
-                    sendNotificationEvent("[MOTION] ACTION: Thermostat going into Home mode.")
+        // Don't take any action if the current Mode is set to "Ignore Motion"
+        if (location.mode != "Ignore Motion") {
+            if (set_climate == "Away") {
+                if (current_presence.size() > 0) {
+                    // If the Ecobee is set to "Away" or "Away and holding" and a presence sensor has been detected, let's just return the Ecobee to normal programming.
+                    sendNotificationEvent("[MOTION] ACTION: Thermostat is resuming its normal program.")
                     try {
-                        try {
-                            thermostat.setThisTstatClimate("Home")
-                        } catch(e) {
-                            sendNotificationEvent("[MOTION] ERROR: ${e}")
-                        }
- 
-                        // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
-                        def current_timestamp = new Date().getTime() / 1000
-                        if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
-                            atomicState.sms_timestamp = current_timestamp
-
-                            parser = new JsonSlurper()
-                            def notification_list = parser.parseText(appSettings.notification_recipients)
-                            notification_list.each { phone_number ->
-                                sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
-                            }
-                        }
+                        thermostat.resumeProgram()
                     } catch(e) {
                         sendNotificationEvent("[MOTION] ERROR: ${e}")
                     }
+                } else {
+                    // If the Ecobee is set to "Away" or "Away and holding" and only motion is detected, someone is at the house but it's not us. Temporarily set the Ecobee to "Home and holding".
+                    // Only do this if the current system location setting is not set to "Away", which means we are on vacation and these rules are overridden.
+                    if (location.currentMode.toString() != "Away") {
+                        // Set the thermostat to "Home and holding", which will hold until all sensors are inactive or a presence sensor is detected.
+                        // NOTE: If we want the holds to expire at the next scheduled activity, make sure the "holdType" preference in the ecobee device settings is set to "nextTransition"
+                        sendNotificationEvent("[MOTION] ACTION: Thermostat going into Home mode.")
+                        try {
+                            try {
+                                thermostat.setThisTstatClimate("Home")
+                            } catch(e) {
+                                sendNotificationEvent("[MOTION] ERROR: ${e}")
+                            }
+
+                            // Don't send a notification if the last notification was less than 30 seconds ago (e.g. when multiple events fire at once)
+                            def current_timestamp = new Date().getTime() / 1000
+                            if (atomicState.sms_timestamp == null || (current_timestamp - atomicState.sms_timestamp) > 30) {
+                                atomicState.sms_timestamp = current_timestamp
+
+                                parser = new JsonSlurper()
+                                def notification_list = parser.parseText(appSettings.notification_recipients)
+                                notification_list.each { phone_number ->
+                                    sendSms(phone_number, "Motion has been detected at home. Thermostat is going into Home mode.")
+                                }
+                            }
+                        } catch(e) {
+                            sendNotificationEvent("[MOTION] ERROR: ${e}")
+                        }
+                    }
                 }
             }
+        } else {
+            sendNotificationEvent("[MOTION] Thermostat is not taking any action due to the Ignore Motion mode being set.")
         }
     }
 }
