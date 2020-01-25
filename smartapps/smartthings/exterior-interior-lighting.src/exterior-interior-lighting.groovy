@@ -20,7 +20,7 @@ preferences {
 	}
 }
 
-def installed() {
+def installed() {         
     initIlluminationState()
     subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
@@ -61,10 +61,10 @@ def switchChangeHandler (evt) {
 def illuminanceChangeHandler (evt) {
     def lux_measurement = evt.integerValue
 
-    evalIlluminanceAction(lux_measurement, "exterior");
+    evalIlluminanceAction(lux_measurement, "exterior")
     
     if (interior_switches != null) {
-    	evalIlluminanceAction(lux_measurement, "interior");
+    	evalIlluminanceAction(lux_measurement, "interior")
     }
 }
 
@@ -120,15 +120,27 @@ def evalIlluminanceAction(lux_measurement, target) {
                     return
                 }
                 
-                // If the target is interior switches and the current time falls between the interior_time_off and interior_time_on, do nothing
-                if (target == "interior" && !valid_hour) {
-                	return;
-                }
-
-                def df = new java.text.SimpleDateFormat("H")
+                // Determine the current day of the week so that we won't turn the lights on in the morning on weekends
+                def week_day_date = new java.text.SimpleDateFormat("u")
                 // Ensure the new date object is set to local time zone
-                df.setTimeZone(location.timeZone)
+                week_day_date.setTimeZone(location.timeZone)
+                def week_day = week_day_date.format(new Date())
+ 
+                def current_hour_date = new java.text.SimpleDateFormat("H")
+                // Ensure the new date object is set to local time zone
+                current_hour_date.setTimeZone(location.timeZone)
                 def hour = df.format(new Date())
+                
+                // If the target is interior switches:
+                // 	If the current time falls between the interior_time_off and interior_time_on, do nothing
+                //	If the current time is before 8AM on a weekend, do nothing
+                if (target == "interior") {
+                	if (!valid_hour) {
+                		return
+                    } else if (hour.toInteger() < 8 && (week_day.toInteger() == 6 || week_day.toInteger() == 7)) {
+                    	return
+                    }
+                }
                 
                 if (location.mode == "Keep Lights Off") {
                     sendNotificationEvent("[LIGHTING] Keeping lights OFF due to the Keep Lights Off mode being set.")
@@ -137,7 +149,7 @@ def evalIlluminanceAction(lux_measurement, target) {
                     switch_list.each { object ->
                         object.on()
                     }
- 
+            
                     if (hour.toInteger() > 15) {
                         sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
                     } else {
