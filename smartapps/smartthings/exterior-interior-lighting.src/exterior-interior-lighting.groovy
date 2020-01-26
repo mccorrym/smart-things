@@ -129,7 +129,7 @@ def evalIlluminanceAction(lux_measurement, target) {
                 def current_hour_date = new java.text.SimpleDateFormat("H")
                 // Ensure the new date object is set to local time zone
                 current_hour_date.setTimeZone(location.timeZone)
-                def hour = df.format(new Date())
+                def hour = current_hour_date.format(new Date())
                 
                 // If the target is interior switches:
                 // 	If the current time falls between the interior_time_off and interior_time_on, do nothing
