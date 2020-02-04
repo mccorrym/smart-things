@@ -1,7 +1,7 @@
 /**
  *  Color Coded Alerts
  *
- *  Copyright 2019 Matt
+ *  Copyright 2020 Matt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -18,7 +18,7 @@ definition(
 	name: "Color Coded Alerts",
 	namespace: "smartthings",
 	author: "Matt",
-	description: "Monitor selected sensors and switches and notify of any changes or alerts using specific color changes in Philips Hue bulbs.",
+	description: "Monitor selected sensors/switches and notify of any changes or alerts using specific color changes in Philips Hue bulbs.",
 	category: "Convenience",
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer.png",
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Developers/smart-light-timer@2x.png"
@@ -26,7 +26,7 @@ definition(
 
 preferences {
 	section("Which sensors monitor the washer and dryer?") {
-		input "laundry_devices", "capability.powerMeter", required: true, multiple: false, title: "Choose the washer and dryer sensors"
+		input "laundry_devices", "capability.powerMeter", required: true, multiple: true, title: "Choose the washer and dryer sensors"
 	}
 	section("Which lights should change color?") {
 		input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color changing lights"
@@ -42,7 +42,7 @@ def installed() {
 	log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
  	
 	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
+	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "laundryLightSequence"]
            
 	subscribe(laundry_devices, "power", powerChangeHandler)
 }
@@ -50,7 +50,7 @@ def installed() {
 def updated() {
 	unsubscribe()
 	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "dryerLightSequence"]
+	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "laundryLightSequence"]
     
 	subscribe(laundry_devices, "power", powerChangeHandler)
 }
@@ -74,7 +74,7 @@ def powerChangeHandler (evt) {
                 }
             }
 			if (lights_on) {
-				runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false])
+				runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [data: ["machine": evt.device.getLabel().toLowerCase()], overwrite: false])
 				runIn(8, backToNormal, [overwrite: false])
 			}
 			state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
@@ -82,9 +82,24 @@ def powerChangeHandler (evt) {
 	}
 }
 
-// The color code for the dryer finishing is GREEN
-def dryerLightSequence() {
-	def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
+
+def laundryLightSequence(data) {
+    switch(data["machine"]) {
+        case "dryer":
+            // The color code for the dryer finishing is GREEN
+		    def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
+            break
+        case "washer":
+            // The color code for the washer finishing is BLUE
+		    def newValue = [hue: 68, saturation: 100, level: 100, temperature: 6500]
+            break
+        case "garage door":
+            // The color code for the garage door left open is RED
+		    def newValue = [hue: 99, saturation: 100, level: 100, temperature: 6500]
+            break
+        default:
+        	return;
+    }
 	lights.setColor(newValue)
 }
 
