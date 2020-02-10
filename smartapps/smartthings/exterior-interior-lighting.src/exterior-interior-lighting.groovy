@@ -230,6 +230,12 @@ def interiorLightsOffHandler(evt) {
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches on at the time specified (interior_time_on) if the current light is <= the value of interior_target
 // Interior lights are NOT turned on during weekend days. They will turn on during weekend days based on light availability after 8AM via evalIlluminanceAction().
 def interiorLightsOnHandler(evt) {
+    // Determine the current day of the week so that we won't turn the lights on in the morning on weekends
+    def week_day_date = new java.text.SimpleDateFormat("u")
+    // Ensure the new date object is set to local time zone
+    week_day_date.setTimeZone(location.timeZone)
+    def week_day = week_day_date.format(new Date())
+    
 	if (week_day.toInteger() < 6) {
         def lux_measurement = sensor.currentValue("illuminance").toInteger()
         def lux_target = interior_target.toInteger()
