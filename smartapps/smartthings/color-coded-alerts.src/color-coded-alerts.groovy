@@ -41,61 +41,75 @@ def installed() {
 	log.debug ("Current hue: ${lights.currentValue("hue")}")
 	log.debug ("Current color temperature: ${lights.currentValue("colorTemperature")}")
  	
-	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "laundryLightSequence"]
-           
-	subscribe(laundry_devices, "power", powerChangeHandler)
+    initColorCodedAlerts()
 }
 
 def updated() {
 	unsubscribe()
+    initColorCodedAlerts()
+}
+
+def initColorCodedAlerts() {
 	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["running": false, "light_sequence": "laundryLightSequence"]
+	state.laundry_devices["dryer"] = ["running": false, "stopped": null, "light_sequence": "laundryLightSequence"]
+    state.laundry_devices["washer"] = ["running": false, "stopped": null, "light_sequence": "laundryLightSequence"]
     
 	subscribe(laundry_devices, "power", powerChangeHandler)
 }
 
 def powerChangeHandler (evt) {
-	log.debug "Sensor ${evt.device.getLabel()} has changed to: ${evt.value}"
-	if (evt.value.toFloat() > 1) {
+	if (evt.value.toFloat() > 5) {
     	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == false) {
 			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
 		}
         state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
 	} else {
 		if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
-			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
-			sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
-            def lights_on = false
-            lights.any { object ->
-            	if (object.currentValue("switch") == "on") {
-                	lights_on = true
-                    return true
+            // The device is outputting < 2 watts. Has it really finished?
+            if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] != null) {
+                def current_date = new Date().getTime() / 1000
+                // Check to make sure at least 1 minute has passed (to avoid fluke fluctuations in reported voltage)
+                if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]) >= 60) {
+                    sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
+                    sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
+                    def lights_on = false
+                    lights.any { object ->
+                        if (object.currentValue("switch") == "on") {
+                            lights_on = true
+                            return true
+                        }
+                    }
+                    if (lights_on) {
+                        runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false, data: ["machine": evt.device.getLabel().toLowerCase()]])
+                        runIn(8, backToNormal, [overwrite: false])
+                    }
+                    // Reset the stopped date to NULL and the running state to FALSE to prepare for the next event
+                    state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
+                    state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = null
                 }
+            } else {
+                state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = new Date().getTime() / 1000
+                log.trace ("Target voltage value has been met. Setting 1 minute timer (${state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]})")
             }
-			if (lights_on) {
-				runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [data: ["machine": evt.device.getLabel().toLowerCase()], overwrite: false])
-				runIn(8, backToNormal, [overwrite: false])
-			}
-			state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
 		}
 	}
 }
 
 
 def laundryLightSequence(data) {
+    def newValue = [:]
     switch(data["machine"]) {
         case "dryer":
             // The color code for the dryer finishing is GREEN
-		    def newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
+		    newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
             break
         case "washer":
             // The color code for the washer finishing is BLUE
-		    def newValue = [hue: 68, saturation: 100, level: 100, temperature: 6500]
+		    newValue = [hue: 68, saturation: 100, level: 100, temperature: 6500]
             break
         case "garage door":
             // The color code for the garage door left open is RED
-		    def newValue = [hue: 99, saturation: 100, level: 100, temperature: 6500]
+		    newValue = [hue: 99, saturation: 100, level: 100, temperature: 6500]
             break
         default:
         	return;
