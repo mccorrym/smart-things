@@ -104,7 +104,7 @@ def evalIlluminanceAction(lux_measurement, target) {
         if (state.on_date[target] != null) {
             def current_date = new Date().getTime() / 1000
             // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
-            if ((current_date - state.on_date[target]) >= 30) {
+            if ((current_date - state.on_date[target]) >= 180) {
                 // Reset the on_date to NULL to prepare for the next event
                 state.on_date[target] = null
 
@@ -137,7 +137,8 @@ def evalIlluminanceAction(lux_measurement, target) {
                 if (target == "interior") {
                 	if (!valid_hour) {
                 		return
-                    } else if (hour.toInteger() < 8 && (week_day.toInteger() == 6 || week_day.toInteger() == 7)) {
+                    } 
+                    if (hour.toInteger() < 8 && (week_day.toInteger() == 6 || week_day.toInteger() == 7)) {
                     	return
                     }
                 }
@@ -153,7 +154,10 @@ def evalIlluminanceAction(lux_measurement, target) {
                     if (hour.toInteger() > 15) {
                         sendPush("Good evening! ${target.capitalize()} lights are turning ON.")
                     } else {
-                        sendPush("${target.capitalize()} lights are turning ON due to darkness.")
+                    	// Only send a notification of darkness during weekdays
+                    	if (week_day.toInteger() < 6) {
+                        	sendPush("${target.capitalize()} lights are turning ON due to darkness.")
+                        }
                     }
                 }
             }
@@ -167,7 +171,7 @@ def evalIlluminanceAction(lux_measurement, target) {
         if (state.off_date[target] != null) {
             def current_date = new Date().getTime() / 1000
             // Check to make sure at least 3 minutes have passed (to avoid fluke values from turning the lights on/off in succession)
-            if ((current_date - state.off_date[target]) >= 30) {
+            if ((current_date - state.off_date[target]) >= 180) {
                 // Reset the off_date to NULL to prepare for the next event
                 state.off_date[target] = null
 
@@ -209,7 +213,7 @@ def evalIlluminanceAction(lux_measurement, target) {
 }
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches off at the time specified (interior_time_off)
-def interiorLightsOffHandler (evt) {
+def interiorLightsOffHandler(evt) {
     if (location.mode == "Keep Lights On") {
         sendNotificationEvent("[LIGHTING] Keeping lights ON due to the Keep Lights On mode being set.")
     } else {
@@ -224,19 +228,22 @@ def interiorLightsOffHandler (evt) {
 }
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches on at the time specified (interior_time_on) if the current light is <= the value of interior_target
-def interiorLightsOnHandler (evt) {
-	def lux_measurement = sensor.currentValue("illuminance").toInteger()
-    def lux_target = interior_target.toInteger()
-    
-    if (lux_measurement < lux_target) {
-    	if (location.mode == "Keep Lights Off") {
-            sendNotificationEvent("[LIGHTING] Keeping lights OFF due to the Keep Lights Off mode being set.")
-        } else {
-            log.trace ("Time ${interior_time_on} has been reached. Turning the interior switches ON.")
-            if (interior_switches != null) {
-                interior_switches.each { object ->
-                    log.debug(object.currentSwitch)
-                    object.on()
+// Interior lights are NOT turned on during weekend days. They will turn on during weekend days based on light availability after 8AM via evalIlluminanceAction().
+def interiorLightsOnHandler(evt) {
+	if (week_day.toInteger() < 6) {
+        def lux_measurement = sensor.currentValue("illuminance").toInteger()
+        def lux_target = interior_target.toInteger()
+
+        if (lux_measurement < lux_target) {
+            if (location.mode == "Keep Lights Off") {
+                sendNotificationEvent("[LIGHTING] Keeping lights OFF due to the Keep Lights Off mode being set.")
+            } else {
+                log.trace ("Time ${interior_time_on} has been reached. Turning the interior switches ON.")
+                if (interior_switches != null) {
+                    interior_switches.each { object ->
+                        log.debug(object.currentSwitch)
+                        object.on()
+                    }
                 }
             }
         }
