@@ -69,8 +69,8 @@ def powerChangeHandler (evt) {
             // The device is outputting < 2 watts. Has it really finished?
             if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] != null) {
                 def current_date = new Date().getTime() / 1000
-                // Check to make sure at least 30 seconds have passed (to avoid fluke fluctuations in reported voltage)
-                if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]) >= 30) {
+                // Check to make sure at least 45 seconds have passed (to avoid fluke fluctuations in reported voltage)
+                if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]) >= 45) {
                     sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
                     sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
                     def lights_on = false
