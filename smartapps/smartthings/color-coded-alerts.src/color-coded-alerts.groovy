@@ -28,6 +28,11 @@ preferences {
 	section("Which sensors monitor the washer and dryer?") {
 		input "laundry_devices", "capability.powerMeter", required: true, multiple: true, title: "Choose the washer and dryer sensors"
 	}
+    section("Configure how the garage door should be monitored.") {
+        input "garage_sensor", "capability.sensor", required: true, multiple: false, title: "Choose the garage door sensor to monitor"
+        input "garage_door_check_time", "time", required: true, title: "Choose a time to check to see if the garage door is open each day"
+    }
+    
 	section("Which lights should change color?") {
 		input "lights", "capability.colorControl", required: true, multiple: true, title: "Choose the color changing lights"
 	}
@@ -46,47 +51,62 @@ def installed() {
 
 def updated() {
 	unsubscribe()
+    unschedule(garageDoorCheckHandler)
     initColorCodedAlerts()
 }
 
 def initColorCodedAlerts() {
+	// Initialize monitoring for washer and dryer
 	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["running": false, "stopped": null, "light_sequence": "laundryLightSequence"]
-    state.laundry_devices["washer"] = ["running": false, "stopped": null, "light_sequence": "laundryLightSequence"]
+	state.laundry_devices["dryer"] = ["last_run": null, "started": null, "stopped": null]
+    state.laundry_devices["washer"] = ["last_run": null, "started": null, "stopped": null]
     
+    // Initialize monitoring for garage door
 	subscribe(laundry_devices, "power", powerChangeHandler)
+    schedule(garage_door_check_time, garageDoorCheckHandler)
 }
 
 def powerChangeHandler (evt) {
 	if (evt.value.toFloat() > 5) {
-    	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == false) {
+    	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] == null) {
 			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
-		}
-        state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = true
+        	state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] = new Date().getTime() / 1000
+            state.laundry_devices[evt.device.getLabel().toLowerCase()]["last_run"] = new Date().getTime() / 1000
+        }
         state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = null
 	} else {
-		if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] == true) {
-            // The device is outputting < 2 watts. Has it really finished?
+		if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] != null) {
+            // The device is outputting < 5 watts. Has it really finished?
             if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] != null) {
                 def current_date = new Date().getTime() / 1000
                 // Check to make sure at least 45 seconds have passed (to avoid fluke fluctuations in reported voltage)
                 if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]) >= 45) {
-                    sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
-                    sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
-                    def lights_on = false
-                    lights.any { object ->
-                        if (object.currentValue("switch") == "on") {
-                            lights_on = true
-                            return true
+                	// If the stopped time is within 15 minutes of the start time, there may be a problem or the machine may have been stopped manually.
+                    if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"]) <= 900) {
+                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has stopped sooner than expected.")
+                        sendPush("The ${evt.device.getLabel().toLowerCase()} has stopped sooner than expected. Check to make sure there's not a problem.")
+                    } else {
+                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
+                        sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
+                        def lights_on = false
+                        lights.any { object ->
+                            if (object.currentValue("switch") == "on") {
+                                lights_on = true
+                                return true
+                            }
+                        }
+                        if (lights_on) {
+                            runIn(5, initLightSequence, [overwrite: false, data: ["machine": evt.device.getLabel().toLowerCase()]])
+                            runIn(8, backToNormal, [overwrite: false])
                         }
                     }
-                    if (lights_on) {
-                        runIn(5, state.laundry_devices[evt.device.getLabel().toLowerCase()]["light_sequence"], [overwrite: false, data: ["machine": evt.device.getLabel().toLowerCase()]])
-                        runIn(8, backToNormal, [overwrite: false])
-                    }
-                    // Reset the stopped date to NULL and the running state to FALSE to prepare for the next event
-                    state.laundry_devices[evt.device.getLabel().toLowerCase()]["running"] = false
+                    // Reset the stopped and started dates to NULL to prepare for the next event
+                    state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] = null
                     state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = null
+                    // If the washer has stopped, run an event in 30 minutes to see if the dryer has started to avoid loads that may have been forgotten
+                    if (evt.device.getLabel().toLowerCase() == "washer") {
+                        runIn(1800, dryerCheckHandler)
+                    }
                 }
             } else {
                 state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = new Date().getTime() / 1000
@@ -96,8 +116,50 @@ def powerChangeHandler (evt) {
 	}
 }
 
+def dryerCheckHandler() {
+    // Check to see whether the dryer has been run in the time since the washer last stopped
+    def current_date = new Date().getTime() / 1000
+    if (current_date - state.laundry_devices["dryer"]["last_run"] >= 1800) {
+        sendNotificationEvent("[EVENT] ALERT: The dryer hasn't started yet. Was a load of clothes forgotten in the washer?")
+        sendPush("The dryer hasn't started yet. Was a load of clothes forgotten in the washer?")
+        def lights_on = false
+        lights.any { object ->
+            if (object.currentValue("switch") == "on") {
+                lights_on = true
+                return true
+            }
+        }
+        if (lights_on) {
+            runIn(5, initLightSequence, [overwrite: false, data: ["machine": "washer"]])
+            runIn(8, backToNormal, [overwrite: false])
+        }
+    }
+}
 
-def laundryLightSequence(data) {
+def garageDoorCheckHandler() {
+    // Check the garage door sensor to see if it's open
+    def door_status = garage_sensor.currentValue("contact").toString()
+    if (door_status == "open") {
+        // Send an alert and flash the lights (if they're on) if the door is still open at the garage_door_check_time
+        sendNotificationEvent("[EVENT] ALERT: The garage door is open.")
+        sendPush("The garage door is open!")
+        def lights_on = false
+        lights.any { object ->
+            if (object.currentValue("switch") == "on") {
+                lights_on = true
+                return true
+            }
+        }
+        if (lights_on) {
+            runIn(5, initLightSequence, [overwrite: false, data: ["machine": "garage door"]])
+            runIn(8, backToNormal, [overwrite: false])
+            // If the lights are on, repeat this routine every 5 minutes until the garage door is closed
+            runIn(300, garageDoorCheckHandler)
+        }
+    }
+}
+
+def initLightSequence(data) {
     def newValue = [:]
     switch(data["machine"]) {
         case "dryer":
@@ -113,7 +175,7 @@ def laundryLightSequence(data) {
 		    newValue = [hue: 99, saturation: 100, level: 100, temperature: 6500]
             break
         default:
-        	return;
+        	return
     }
 	lights.setColor(newValue)
 }
