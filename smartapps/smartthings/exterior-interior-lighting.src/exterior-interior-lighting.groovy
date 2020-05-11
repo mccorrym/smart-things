@@ -12,15 +12,16 @@ preferences {
 	section("Choose the light sensor and switches you'd like to control.") {
         input "sensor", "capability.illuminanceMeasurement", required: true, title: "Which light sensor to monitor?"
         input "exterior_switches", "capability.switch", required: true, multiple: true, title: "Which exterior switch(es) to control?"
-        input "exterior_target", "enum", required: true, title: "Which lumen value to target for exterior switches?", options: [200, 400, 600, 800]
+        input "exterior_target", "enum", required: true, description: "All exterior lights will be turned ON or OFF once this lumen value has been met.", title: "Which lumen value to target for exterior switches?", options: [200, 400, 600, 800]
         input "interior_switches", "capability.switch", required: false, multiple: true, title: "Which interior switch(es) to control? (optional)"
-        input "interior_target", "enum", required: true, title: "Which lumen value to target for interior switches?", options: [200, 400, 600, 800]
-        input "interior_time_off", "time", required: false, title: "Choose a time to turn the interior lights off at night"
-        input "interior_time_on", "time", required: false, title: "Choose a time to turn the interior lights on in the morning"
+        input "interior_target", "enum", required: true, description: "All interior lights will be turned ON or OFF once this lumen value has been met.", title: "Which lumen value to target for interior switches?", options: [200, 400, 600, 800]
+        input "interior_time_off", "time", required: false, description: "All interior lights chosen above will be turned ON at this time if they have not already been turned on due to low light.", title: "Choose a time to turn the interior lights off at night"
+        input "interior_time_on", "time", required: false, description: "All interior lights chosen above will be turned OFF at this time if they have not already been turned off due to meeting the minimum interior lumen specified.", title: "Choose a time to turn the interior lights on in the morning"
+        input "interior_exceptions", "capability.switch", required: false, multiple: true, description: "These are interior switches that do not turn ON in the morning or OFF at night based on the times indicated above. Instead, they turn on based on light detected and must be turned off manually.", title: "Choose any interior switch(es) that are exceptions (optional)"
 	}
 }
 
-def installed() {         
+def installed() {
     initIlluminationState()
     subscribe(sensor, "illuminance", illuminanceChangeHandler)
     subscribe(switches, "switch", switchChangeHandler)
@@ -132,8 +133,10 @@ def evalIlluminanceAction(lux_measurement, target) {
                 def hour = current_hour_date.format(new Date())
                 
                 // If the target is interior switches:
-                // 	If the current time falls between the interior_time_off and interior_time_on, do nothing
-                //	If the current time is before 8AM on a weekend, do nothing
+                // 		If the current time falls between the interior_time_off and interior_time_on, do nothing
+                //		If the current time is before 8AM on a weekend, do nothing
+                //		If the current time is before 8AM and the switch is in the list of interior_exceptions, do nothing
+                //	Otherwise, turn the switch on
                 if (target == "interior") {
                 	if (!valid_hour) {
                 		return
@@ -148,7 +151,20 @@ def evalIlluminanceAction(lux_measurement, target) {
                 } else {
                     log.trace("Turning ${target} lights ON!")
                     switch_list.each { object ->
-                        object.on()
+                        def interior_exception = false
+                        if (interior_exceptions != null) {
+                            interior_exceptions.each { exception ->
+                                if (exception.getLabel() == object.getLabel()) {
+                                    interior_exception = true
+                                    return
+                                }
+                            }
+                        }
+                        if (interior_exception && hour.toInteger() < 8) {
+                        	// If it's before 8AM and the interior switch is in the list of exceptions, do nothing
+                        } else {
+                        	object.on()
+                        }
                     }
             
                     if (hour.toInteger() > 15) {
@@ -213,6 +229,9 @@ def evalIlluminanceAction(lux_measurement, target) {
 }
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches off at the time specified (interior_time_off)
+// Interior lights are NOT turned off if:
+//		1. The switch is in the list of interior_exceptions.
+// These switches are left on indefinitely and must be turned off manually.
 def interiorLightsOffHandler(evt) {
     if (location.mode == "Keep Lights On") {
         sendNotificationEvent("[LIGHTING] Keeping lights ON due to the Keep Lights On mode being set.")
@@ -220,15 +239,28 @@ def interiorLightsOffHandler(evt) {
         log.trace ("Time ${interior_time_off} has been reached. Turning the interior switches OFF.")
         if (interior_switches != null) {
             interior_switches.each { object ->
-                log.debug(object.currentSwitch)
-                object.off()
+                def interior_exception = false
+                if (interior_exceptions != null) {
+                    interior_exceptions.each { exception ->
+                        if (exception.getLabel() == object.getLabel()) {
+                            interior_exception = true
+                            return
+                        }
+                    }
+                }
+                if (!interior_exception) {
+                    object.off()
+                }
             }
         }
     }
 }
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches on at the time specified (interior_time_on) if the current light is <= the value of interior_target
-// Interior lights are NOT turned on during weekend days. They will turn on during weekend days based on light availability after 8AM via evalIlluminanceAction().
+// Interior lights are NOT turned on if:
+//		1. It's a weekend day before 8AM.
+//		2. The switch is in the list of interior_exceptions.
+// These exceptions will turn on based on light availability after 8AM via evalIlluminanceAction().
 def interiorLightsOnHandler(evt) {
     // Determine the current day of the week so that we won't turn the lights on in the morning on weekends
     def week_day_date = new java.text.SimpleDateFormat("u")
@@ -247,8 +279,18 @@ def interiorLightsOnHandler(evt) {
                 log.trace ("Time ${interior_time_on} has been reached. Turning the interior switches ON.")
                 if (interior_switches != null) {
                     interior_switches.each { object ->
-                        log.debug(object.currentSwitch)
-                        object.on()
+                        def interior_exception = false
+                        if (interior_exceptions != null) {
+                            interior_exceptions.each { exception ->
+                                if (exception.getLabel() == object.getLabel()) {
+                                    interior_exception = true
+                                    return
+                                }
+                            }
+                        }
+                        if (!interior_exception) {
+                            object.on()
+                        }
                     }
                 }
             }
