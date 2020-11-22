@@ -18,35 +18,33 @@ definition(
 	name: "Garage Door Monitor",
 	namespace: "smartthings",
 	author: "Matt",
-	description: "Monitor the virtual switch attached to the scene that toggles the garage door to turn the garage door switch back off after a few seconds.",
+	description: "Monitor the switch attached to the garage door to turn the switch back off after a few seconds.",
 	category: "Convenience",
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/garage_contact.png",
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/garage_contact@2x.png"
 )
 
 preferences {
-	section("Choose the virtual switch to monitor for garage door activity.") {
-		input "garage_door_monitor", "capability.switch", required: true, multiple: false, title: "Choose the virtual switch"
-	}
-	section("Choose the garage door switch to turn off when activity is detected.") {
+	section("Choose the switch that controls the garage door.") {
 		input "garage_door", "capability.switch", required: true, multiple: false, title: "Choose the garage door switch"
 	}
 }
 
 def installed() {
-    subscribe(garage_door_monitor, "switch", switchChangeHandler)
+    subscribe(garage_door, "switch", switchChangeHandler)
 }
 
 def updated() {
 	unsubscribe()
-    subscribe(garage_door_monitor, "switch", switchChangeHandler)
+    subscribe(garage_door, "switch", switchChangeHandler)
 }
 
 def switchChangeHandler(evt) {
-    runIn(3, toggleSwitch, [overwrite: false])
+	if (evt.value.toString() == "on") {
+    	runIn(3, toggleSwitch, [overwrite: false])
+    }
 }
 
 def toggleSwitch() {
     garage_door.off()
-    garage_door_monitor.off()
 }
