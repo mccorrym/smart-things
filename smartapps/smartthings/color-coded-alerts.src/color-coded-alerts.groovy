@@ -26,8 +26,11 @@ definition(
 
 preferences {
 	section("Which sensors monitor the washer and dryer?") {
-		input "laundry_devices", "capability.powerMeter", required: true, multiple: true, title: "Choose the washer and dryer sensors"
+		input "laundry_devices", "capability.powerMeter", required: true, multiple: true, title: "Choose the washer and dryer power meters"
 	}
+    section("Choose the virtual switches to turn on/off when voltage changes are detected in the laundry room.") {
+    	input "virtual_laundry_devices", "capability.switch", required: true, multiple: true, title: "Choose the virtual washer and dryer switches"
+    }
     section("Configure how the garage door should be monitored.") {
         input "garage_sensor", "capability.sensor", required: true, multiple: false, title: "Choose the garage door sensor to monitor"
         input "garage_door_check_time", "time", required: true, title: "Choose a time to check to see if the garage door is open each day"
@@ -58,18 +61,25 @@ def updated() {
 def initColorCodedAlerts() {
 	// Initialize monitoring for washer and dryer
 	state.laundry_devices = [:]
-	state.laundry_devices["dryer"] = ["last_run": null, "started": null, "stopped": null]
-    state.laundry_devices["washer"] = ["last_run": null, "started": null, "stopped": null]
-    
-    // Initialize monitoring for garage door
+	state.laundry_devices["dryer power"] = ["last_run": null, "started": null, "stopped": null]
+    state.laundry_devices["washer power"] = ["last_run": null, "started": null, "stopped": null]
+    virtual_laundry_devices.each { object ->
+    	object.off()
+    }
 	subscribe(laundry_devices, "power", powerChangeHandler)
+    // Initialize monitoring for garage door
     schedule(garage_door_check_time, garageDoorCheckHandler)
 }
 
 def powerChangeHandler (evt) {
 	if (evt.value.toFloat() > 5) {
     	if (state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] == null) {
-			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has started.")
+			sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase().replaceAll(" power", "")} has started.")
+ 			virtual_laundry_devices.each { object ->
+            	if ("${object.toString().toLowerCase()} power" == evt.device.getLabel().toLowerCase()) {
+                	object.on()
+                }
+            }
         	state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] = new Date().getTime() / 1000
             state.laundry_devices[evt.device.getLabel().toLowerCase()]["last_run"] = new Date().getTime() / 1000
         }
@@ -81,13 +91,18 @@ def powerChangeHandler (evt) {
                 def current_date = new Date().getTime() / 1000
                 // Check to make sure at least 45 seconds have passed (to avoid fluke fluctuations in reported voltage)
                 if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"]) >= 45) {
-                	// If the stopped time is within 15 minutes of the start time, there may be a problem or the machine may have been stopped manually.
+                    virtual_laundry_devices.each { object ->
+                        if ("${object.toString().toLowerCase()} power" == evt.device.getLabel().toLowerCase()) {
+                            object.off()
+                        }
+                    }					
+                    // If the stopped time is within 15 minutes of the start time, there may be a problem or the machine may have been stopped manually.
                     if ((current_date - state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"]) <= 900) {
-                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has stopped sooner than expected.")
-                        sendPush("The ${evt.device.getLabel().toLowerCase()} has stopped sooner than expected. Check to make sure there's not a problem.")
+                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase().replaceAll(" power", "")} has stopped sooner than expected.")
+                        sendPush("The ${evt.device.getLabel().toLowerCase().replaceAll(" power", "")} has stopped sooner than expected. Check to make sure there's not a problem.")
                     } else {
-                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase()} has finished.")
-                        sendPush("The ${evt.device.getLabel().toLowerCase()} has finished!")
+                        sendNotificationEvent("[EVENT] ALERT: The ${evt.device.getLabel().toLowerCase().replaceAll(" power", "")} has finished.")
+                        sendPush("The ${evt.device.getLabel().toLowerCase().replaceAll(" power", "")} has finished!")
                         def lights_on = false
                         lights.any { object ->
                             if (object.currentValue("switch") == "on") {
@@ -104,7 +119,7 @@ def powerChangeHandler (evt) {
                     state.laundry_devices[evt.device.getLabel().toLowerCase()]["started"] = null
                     state.laundry_devices[evt.device.getLabel().toLowerCase()]["stopped"] = null
                     // If the washer has stopped, run an event in 30 minutes to see if the dryer has started to avoid loads that may have been forgotten
-                    if (evt.device.getLabel().toLowerCase() == "washer") {
+                    if (evt.device.getLabel().toLowerCase() == "washer power") {
                         runIn(1800, dryerCheckHandler)
                     }
                 }
@@ -119,7 +134,7 @@ def powerChangeHandler (evt) {
 def dryerCheckHandler() {
     // Check to see whether the dryer has been run in the time since the washer last stopped
     def current_date = new Date().getTime() / 1000
-    if (current_date - state.laundry_devices["dryer"]["last_run"] >= 1800) {
+    if (current_date - state.laundry_devices["dryer power"]["last_run"] >= 1800) {
         sendNotificationEvent("[EVENT] ALERT: The dryer hasn't started yet. Was a load of clothes forgotten in the washer?")
         sendPush("The dryer hasn't started yet. Was a load of clothes forgotten in the washer?")
         def lights_on = false
@@ -130,7 +145,7 @@ def dryerCheckHandler() {
             }
         }
         if (lights_on) {
-            runIn(5, initLightSequence, [overwrite: false, data: ["machine": "washer"]])
+            runIn(5, initLightSequence, [overwrite: false, data: ["machine": "washer power"]])
             runIn(8, backToNormal, [overwrite: false])
         }
     }
@@ -162,11 +177,11 @@ def garageDoorCheckHandler() {
 def initLightSequence(data) {
     def newValue = [:]
     switch(data["machine"]) {
-        case "dryer":
+        case "dryer power":
             // The color code for the dryer finishing is GREEN
 		    newValue = [hue: 37, saturation: 100, level: 100, temperature: 6500]
             break
-        case "washer":
+        case "washer power":
             // The color code for the washer finishing is BLUE
 		    newValue = [hue: 68, saturation: 100, level: 100, temperature: 6500]
             break
