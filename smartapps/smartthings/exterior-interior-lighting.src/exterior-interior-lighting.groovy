@@ -135,7 +135,7 @@ def evalIlluminanceAction(lux_measurement, target) {
                 // If the target is interior switches:
                 // 		If the current time falls between the interior_time_off and interior_time_on, do nothing
                 //		If the current time is before 8AM on a weekend, do nothing
-                //		If the current time is before 8AM and the switch is in the list of interior_exceptions, do nothing
+                //		If the current time is before 12PM and the switch is in the list of interior_exceptions, do nothing
                 //	Otherwise, turn the switch on
                 if (target == "interior") {
                 	if (!valid_hour) {
@@ -160,8 +160,8 @@ def evalIlluminanceAction(lux_measurement, target) {
                                 }
                             }
                         }
-                        if (interior_exception && hour.toInteger() < 8) {
-                        	// If it's before 8AM and the interior switch is in the list of exceptions, do nothing
+                        if (interior_exception && hour.toInteger() < 12) {
+                        	// If it's before 12PM and the interior switch is in the list of exceptions, do nothing
                         } else {
                         	object.on()
                         }
@@ -258,9 +258,8 @@ def interiorLightsOffHandler(evt) {
 
 // This event is run whenever interior lights are chosen for the scene. It will turn the interior switches on at the time specified (interior_time_on) if the current light is <= the value of interior_target
 // Interior lights are NOT turned on if:
-//		1. It's a weekend day before 8AM.
-//		2. The switch is in the list of interior_exceptions.
-// These exceptions will turn on based on light availability after 8AM via evalIlluminanceAction().
+//		1. It's a weekend day before 8AM. These exceptions will turn on based on light availability after 8AM via evalIlluminanceAction().
+//		2. The switch is in the list of interior_exceptions. These exceptions will turn on based on light availability after 12PM via evalIlluminanceAction().
 def interiorLightsOnHandler(evt) {
     // Determine the current day of the week so that we won't turn the lights on in the morning on weekends
     def week_day_date = new java.text.SimpleDateFormat("u")
